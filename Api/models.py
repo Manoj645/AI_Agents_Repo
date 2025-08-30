@@ -19,7 +19,7 @@ class PullRequest(SQLModel, table=True):
     author: str = Field(max_length=100)
     repository: str = Field(max_length=255)
     pr_number: int = Field(unique=True)
-    github_id: Optional[int] = Field(default=None, sa_column_kwargs={"type_": "BIGINT"})
+    github_id: Optional[int] = Field(default=None)
     html_url: Optional[str] = Field(default=None, max_length=500)
     
     # Enhanced metadata fields
