@@ -7,6 +7,7 @@ import traceback
 from pydantic import ValidationError
 import json
 import asyncio
+from datetime import datetime
 
 from database import get_db, create_db_and_tables
 from models import PullRequest, File, CodeReview
@@ -206,6 +207,21 @@ async def trigger_ai_review(pr_id: int, db: Session = Depends(get_db)):
             detail=f"Failed to trigger AI review: {str(e)}"
         )
 
+@app.get("/webhook-test")
+async def webhook_test():
+    """Simple webhook test endpoint"""
+    return {
+        "status": "success",
+        "message": "Webhook endpoint is accessible",
+        "timestamp": datetime.now().isoformat(),
+        "endpoint": "/webhooks/github",
+        "method": "POST",
+        "required_headers": [
+            "X-GitHub-Event",
+            "X-Hub-Signature-256"
+        ]
+    }
+
 @app.post("/webhooks/github")
 async def github_webhook(request: Request, db: Session = Depends(get_db)):
     """Handle GitHub webhook events"""
@@ -228,6 +244,7 @@ async def github_webhook(request: Request, db: Session = Depends(get_db)):
         
         # Verify signature and process webhook
         try:
+            # Process webhook quickly to avoid timeout
             webhook_result = webhook_handler.handle_webhook(body, signature, event_type, db)
             
             # If webhook processing was successful and PR was stored, trigger AI review
@@ -237,11 +254,17 @@ async def github_webhook(request: Request, db: Session = Depends(get_db)):
                 
                 # Trigger AI review asynchronously (don't wait for it to complete)
                 try:
-                    # This will run in background - webhook response is not delayed
+                    # Use asyncio.create_task to run in background
+                    # This ensures webhook response is sent immediately
                     asyncio.create_task(ai_review_service.process_pr_review(db, pr_id))
+                    print(f"✅ AI review task created for PR ID: {pr_id}")
                 except Exception as ai_error:
                     print(f"⚠️ AI review trigger failed (non-blocking): {ai_error}")
+                    # Don't fail the webhook if AI review fails
+            else:
+                print(f"ℹ️ No AI review triggered: {webhook_result.get('message', 'Unknown reason')}")
             
+            # Return response immediately
             return webhook_result
             
         except Exception as webhook_error:

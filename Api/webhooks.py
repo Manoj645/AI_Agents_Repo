@@ -292,5 +292,50 @@ class GitHubWebhookHandler:
             print(f"Error in handle_pull_request_event: {traceback.format_exc()}")
             raise ValueError(f"Webhook processing failed: {str(e)}")
 
+    def handle_webhook(self, body: bytes, signature: str, event_type: str, db: Session) -> Dict[str, Any]:
+        """Main webhook handler method"""
+        try:
+            # Parse the webhook payload
+            try:
+                payload = json.loads(body.decode('utf-8'))
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON payload: {str(e)}")
+            
+            # Verify webhook signature
+            if not self.verify_signature_manual(body, signature):
+                raise ValueError("Invalid webhook signature")
+            
+            # Handle different event types
+            if event_type == "pull_request":
+                return self.handle_pull_request_event(payload, db)
+            elif event_type == "ping":
+                return {
+                    "message": "Webhook ping received",
+                    "status": "success",
+                    "event_type": "ping"
+                }
+            else:
+                return {
+                    "message": f"Event type '{event_type}' not supported",
+                    "status": "ignored",
+                    "supported_events": ["pull_request", "ping"],
+                    "received_event": event_type
+                }
+                
+        except Exception as e:
+            print(f"Error in handle_webhook: {traceback.format_exc()}")
+            raise ValueError(f"Webhook processing failed: {str(e)}")
+
+    def verify_signature_manual(self, payload: bytes, signature: str) -> bool:
+        """Verify GitHub webhook signature manually"""
+        if not self.secret_token:
+            return True  # Skip verification if no secret is set
+        
+        if not signature.startswith("sha256="):
+            return False
+        
+        expected_signature = f"sha256={hmac.new(self.secret_token.encode(), payload, hashlib.sha256).hexdigest()}"
+        return hmac.compare_digest(signature, expected_signature)
+
 # Create global webhook handler instance
 webhook_handler = GitHubWebhookHandler(os.getenv("GITHUB_WEBHOOK_SECRET", ""))
