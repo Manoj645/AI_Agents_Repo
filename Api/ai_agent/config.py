@@ -13,7 +13,7 @@ class AIConfig:
     """AI Agent Configuration"""
     
     # OpenAI Configuration
-    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY", "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")
+    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     
     # GitHub Configuration
