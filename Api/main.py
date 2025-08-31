@@ -1,29 +1,268 @@
-from fastapi import FastAPI, Depends, Request, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-from database import get_db, create_db_and_tables
-from models import PullRequest, File, PRStatus
-from webhooks import webhook_handler
-from typing import List
-import json
+from sqlalchemy import select, text
+from sqlmodel import SQLModel
 import traceback
 from pydantic import ValidationError
+import json
+import asyncio
 
-app = FastAPI(
-    title="PR Review AI Agent",
-    description="A FastAPI application for PR review with PostgreSQL database",
-    version="1.0.0"
-)
+from database import get_db, create_db_and_tables
+from models import PullRequest, File, CodeReview
+from webhooks import GitHubWebhookHandler
+from ai_agent.service import AIReviewService
 
-# Create database tables on startup
+app = FastAPI(title="PR Review AI Agent", version="1.0.0")
+
+# Initialize webhook handler
+webhook_handler = GitHubWebhookHandler()
+
+# Initialize AI review service
+ai_review_service = AIReviewService()
+
 @app.on_event("startup")
 async def startup_event():
+    """Initialize database on startup"""
     create_db_and_tables()
+
+@app.get("/")
+async def root():
+    """Root endpoint with available routes"""
+    return {
+        "message": "PR Review AI Agent API",
+        "version": "1.0.0",
+        "endpoints": [
+            "/health",
+            "/hello", 
+            "/prs",
+            "/prs/{pr_id}",
+            "/prs/{pr_id}/files",
+            "/prs/{pr_id}/suggestions",
+            "/webhooks/github",
+            "/db-test",
+            "/ai-review/{pr_id}"
+        ]
+    }
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "ok", "message": "Service is healthy"}
+    return {"status": "ok", "message": "Service is running"}
+
+@app.get("/hello")
+async def hello():
+    """Simple hello endpoint"""
+    return {"message": "Hello from PR Review AI Agent!"}
+
+@app.get("/prs")
+async def get_pull_requests(db: Session = Depends(get_db)):
+    """Get all pull requests"""
+    try:
+        stmt = select(PullRequest).order_by(PullRequest.created_at.desc())
+        prs = db.execute(stmt).scalars().all()
+        
+        return {
+            "status": "success",
+            "data": [
+                {
+                    "id": pr.id,
+                    "title": pr.title,
+                    "status": pr.status.value,
+                    "author": pr.author,
+                    "repository": pr.repository,
+                    "pr_number": pr.pr_number,
+                    "created_at": pr.created_at.isoformat(),
+                    "html_url": pr.html_url
+                }
+                for pr in prs
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch pull requests: {str(e)}"
+        )
+
+@app.get("/prs/{pr_id}")
+async def get_pull_request(pr_id: int, db: Session = Depends(get_db)):
+    """Get a specific pull request by ID"""
+    try:
+        stmt = select(PullRequest).where(PullRequest.id == pr_id)
+        pr = db.execute(stmt).scalar_one_or_none()
+        
+        if not pr:
+            raise HTTPException(status_code=404, detail="Pull request not found")
+        
+        return {
+            "status": "success",
+            "data": {
+                "id": pr.id,
+                "title": pr.title,
+                "description": pr.description,
+                "status": pr.status.value,
+                "author": pr.author,
+                "repository": pr.repository,
+                "pr_number": pr.pr_number,
+                "github_id": pr.github_id,
+                "html_url": pr.html_url,
+                "branch_name": pr.branch_name,
+                "base_branch": pr.base_branch,
+                "additions": pr.additions,
+                "deletions": pr.deletions,
+                "changed_files": pr.changed_files,
+                "created_at": pr.created_at.isoformat(),
+                "updated_at": pr.updated_at.isoformat()
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch pull request: {str(e)}"
+        )
+
+@app.get("/prs/{pr_id}/files")
+async def get_pr_files(pr_id: int, db: Session = Depends(get_db)):
+    """Get files for a specific pull request"""
+    try:
+        stmt = select(File).where(File.pull_request_id == pr_id)
+        files = db.execute(stmt).scalars().all()
+        
+        return {
+            "status": "success",
+            "data": [
+                {
+                    "id": file.id,
+                    "filename": file.filename,
+                    "status": file.status,
+                    "additions": file.additions,
+                    "deletions": file.deletions,
+                    "changes": file.changes,
+                    "file_size": file.file_size,
+                    "file_extension": file.file_extension
+                }
+                for file in files
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch PR files: {str(e)}"
+        )
+
+@app.get("/prs/{pr_id}/suggestions")
+async def get_pr_suggestions(pr_id: int, db: Session = Depends(get_db)):
+    """Get AI review suggestions for a specific pull request"""
+    try:
+        suggestions = ai_review_service.get_pr_suggestions(db, pr_id)
+        
+        return {
+            "status": "success",
+            "data": {
+                "pull_request_id": pr_id,
+                "total_suggestions": len(suggestions),
+                "suggestions": suggestions
+            }
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch PR suggestions: {str(e)}"
+        )
+
+@app.post("/ai-review/{pr_id}")
+async def trigger_ai_review(pr_id: int, db: Session = Depends(get_db)):
+    """Manually trigger AI review for a pull request"""
+    try:
+        # Validate AI agent configuration
+        if not ai_review_service.validate_configuration():
+            raise HTTPException(
+                status_code=500,
+                detail="AI agent configuration is invalid. Please check environment variables."
+            )
+        
+        # Process AI review
+        result = await ai_review_service.process_pr_review(db, pr_id)
+        
+        if result["success"]:
+            return {
+                "status": "success",
+                "message": result["message"],
+                "data": result["data"]
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"AI review failed: {result['error']}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to trigger AI review: {str(e)}"
+        )
+
+@app.post("/webhooks/github")
+async def github_webhook(request: Request, db: Session = Depends(get_db)):
+    """Handle GitHub webhook events"""
+    try:
+        # Get request body
+        body = await request.body()
+        if not body:
+            raise HTTPException(status_code=400, detail="Empty webhook payload")
+        
+        # Get headers
+        headers = dict(request.headers)
+        event_type = headers.get("X-GitHub-Event")
+        signature = headers.get("X-Hub-Signature-256")
+        
+        if not event_type:
+            raise HTTPException(status_code=400, detail="Missing X-GitHub-Event header")
+        
+        if not signature:
+            raise HTTPException(status_code=400, detail="Missing X-Hub-Signature-256 header")
+        
+        # Verify signature and process webhook
+        try:
+            webhook_result = webhook_handler.handle_webhook(body, signature, event_type, db)
+            
+            # If webhook processing was successful and PR was stored, trigger AI review
+            if webhook_result.get("success") and webhook_result.get("pr_id"):
+                pr_id = webhook_result["pr_id"]
+                print(f"🚀 Triggering AI review for PR ID: {pr_id}")
+                
+                # Trigger AI review asynchronously (don't wait for it to complete)
+                try:
+                    # This will run in background - webhook response is not delayed
+                    asyncio.create_task(ai_review_service.process_pr_review(db, pr_id))
+                except Exception as ai_error:
+                    print(f"⚠️ AI review trigger failed (non-blocking): {ai_error}")
+            
+            return webhook_result
+            
+        except Exception as webhook_error:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Webhook processing failed: {str(webhook_error)}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_details = {
+            "status": "error",
+            "message": "Webhook processing failed",
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "full_traceback": traceback.format_exc()
+        }
+        
+        print(f"Webhook error: {error_details}")
+        raise HTTPException(status_code=500, detail=error_details)
 
 @app.get("/db-test")
 async def database_connection_test(db: Session = Depends(get_db)):
@@ -39,10 +278,12 @@ async def database_connection_test(db: Session = Depends(get_db)):
         # Test 3: Check if our specific tables exist
         pr_table_exists = db.execute(text("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'pull_requests')")).scalar()
         files_table_exists = db.execute(text("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'files')")).scalar()
+        reviews_table_exists = db.execute(text("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'code_reviews')")).scalar()
         
         # Test 4: Try to count records (should work even if tables are empty)
         pr_count = db.execute(text("SELECT COUNT(*) FROM pull_requests")).scalar() if pr_table_exists else 0
         files_count = db.execute(text("SELECT COUNT(*) FROM files")).scalar() if files_table_exists else 0
+        reviews_count = db.execute(text("SELECT COUNT(*) FROM code_reviews")).scalar() if reviews_table_exists else 0
         
         return {
             "status": "success",
@@ -52,8 +293,10 @@ async def database_connection_test(db: Session = Depends(get_db)):
                 "total_tables": table_count,
                 "pull_requests_table": pr_table_exists,
                 "files_table": files_table_exists,
+                "code_reviews_table": reviews_table_exists,
                 "pull_requests_count": pr_count,
-                "files_count": files_count
+                "files_count": files_count,
+                "code_reviews_count": reviews_count
             }
         }
         
@@ -89,301 +332,6 @@ def _get_error_suggestion(error: Exception) -> str:
         return "Database connection timeout. Check network connectivity and database load"
     else:
         return "Check database configuration and ensure all required packages are installed"
-
-@app.get("/hello")
-async def hello_world():
-    """Hello world endpoint"""
-    return {"message": "Hello, World!"}
-
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {"message": "Welcome to PR Review AI Agent", "endpoints": ["/health", "/db-test", "/hello", "/prs", "/prs/{pr_id}"]}
-
-# Database endpoints
-@app.get("/prs", response_model=List[PullRequest])
-async def get_pull_requests(db: Session = Depends(get_db)):
-    """Get all pull requests"""
-    try:
-        from sqlalchemy import select
-        stmt = select(PullRequest)
-        result = db.execute(stmt).scalars().all()
-        return result
-    except Exception as e:
-        error_msg = f"Failed to fetch pull requests: {str(e)}"
-        print(f"Error in get_pull_requests: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500, 
-            detail={
-                "error": error_msg,
-                "error_type": type(e).__name__,
-                "suggestion": "Check database connection and table structure"
-            }
-        )
-
-@app.get("/prs/{pr_id}", response_model=PullRequest)
-async def get_pull_request(pr_id: int, db: Session = Depends(get_db)):
-    """Get a specific pull request by ID"""
-    try:
-        # Validate pr_id
-        if pr_id <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Invalid PR ID",
-                    "message": "PR ID must be a positive integer",
-                    "received_value": pr_id
-                }
-            )
-        
-        from sqlalchemy import select
-        stmt = select(PullRequest).where(PullRequest.id == pr_id)
-        pr = db.execute(stmt).scalar_one_or_none()
-        
-        if not pr:
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "error": "Pull request not found",
-                    "message": f"No pull request found with ID {pr_id}",
-                    "suggestion": "Check the PR ID or verify the PR exists in the database"
-                }
-            )
-        return pr
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = f"Failed to fetch pull request {pr_id}: {str(e)}"
-        print(f"Error in get_pull_request: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": error_msg,
-                "error_type": type(e).__name__,
-                "suggestion": "Check database connection and try again"
-            }
-        )
-
-@app.post("/prs", response_model=PullRequest)
-async def create_pull_request(pr: PullRequest, db: Session = Depends(get_db)):
-    """Create a new pull request"""
-    try:
-        # Validate required fields
-        if not pr.title or not pr.author or not pr.repository:
-            missing_fields = []
-            if not pr.title:
-                missing_fields.append("title")
-            if not pr.author:
-                missing_fields.append("author")
-            if not pr.repository:
-                missing_fields.append("repository")
-            
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Missing required fields",
-                    "missing_fields": missing_fields,
-                    "message": "Title, author, and repository are required fields"
-                }
-            )
-        
-        # Check if PR with same number already exists
-        from sqlalchemy import select
-        existing_stmt = select(PullRequest).where(
-            PullRequest.pr_number == pr.pr_number,
-            PullRequest.repository == pr.repository
-        )
-        existing_pr = db.execute(existing_stmt).scalar_one_or_none()
-        
-        if existing_pr:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "error": "Pull request already exists",
-                    "message": f"PR #{pr.pr_number} already exists in repository {pr.repository}",
-                    "existing_pr_id": existing_pr.id,
-                    "suggestion": "Use PUT method to update existing PR or use a different PR number"
-                }
-            )
-        
-        db.add(pr)
-        db.commit()
-        db.refresh(pr)
-        return pr
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        error_msg = f"Failed to create pull request: {str(e)}"
-        print(f"Error in create_pull_request: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": error_msg,
-                "error_type": type(e).__name__,
-                "suggestion": "Check database connection and data validation"
-            }
-        )
-
-@app.get("/prs/{pr_id}/files", response_model=List[File])
-async def get_pr_files(pr_id: int, db: Session = Depends(get_db)):
-    """Get all files for a specific pull request"""
-    try:
-        # Validate pr_id
-        if pr_id <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Invalid PR ID",
-                    "message": "PR ID must be a positive integer",
-                    "received_value": pr_id
-                }
-            )
-        
-        # First check if PR exists
-        from sqlalchemy import select
-        pr_stmt = select(PullRequest).where(PullRequest.id == pr_id)
-        pr = db.execute(pr_stmt).scalar_one_or_none()
-        
-        if not pr:
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "error": "Pull request not found",
-                    "message": f"No pull request found with ID {pr_id}",
-                    "suggestion": "Check the PR ID or verify the PR exists in the database"
-                }
-            )
-        
-        # Get files for the PR
-        files_stmt = select(File).where(File.pull_request_id == pr_id)
-        files = db.execute(files_stmt).scalars().all()
-        return files
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = f"Failed to fetch files for PR {pr_id}: {str(e)}"
-        print(f"Error in get_pr_files: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": error_msg,
-                "error_type": type(e).__name__,
-                "suggestion": "Check database connection and try again"
-            }
-        )
-
-# GitHub Webhook Endpoint
-@app.post("/webhooks/github")
-async def github_webhook(request: Request, db: Session = Depends(get_db)):
-    """Handle GitHub webhook events"""
-    try:
-        # Read the request body
-        payload_bytes = await request.body()
-        
-        # Validate payload is not empty
-        if not payload_bytes:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Empty payload",
-                    "message": "Request body is empty",
-                    "suggestion": "Ensure the webhook payload contains valid JSON data"
-                }
-            )
-        
-        # Parse JSON payload
-        try:
-            payload = json.loads(payload_bytes)
-        except json.JSONDecodeError as e:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Invalid JSON payload",
-                    "message": f"Failed to parse JSON: {str(e)}",
-                    "received_payload": payload_bytes.decode('utf-8', errors='ignore')[:200] + "..." if len(payload_bytes) > 200 else payload_bytes.decode('utf-8', errors='ignore'),
-                    "suggestion": "Ensure the webhook payload is valid JSON"
-                }
-            )
-        
-        # Verify webhook signature
-        if not webhook_handler.verify_signature(request, payload_bytes):
-            raise HTTPException(
-                status_code=401,
-                detail={
-                    "error": "Invalid webhook signature",
-                    "message": "GitHub webhook signature verification failed",
-                    "suggestion": "Check GITHUB_WEBHOOK_SECRET environment variable and ensure it matches GitHub's webhook secret"
-                }
-            )
-        
-        # Check if this is a pull request event
-        event_type = request.headers.get("X-GitHub-Event")
-        if not event_type:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Missing event type",
-                    "message": "X-GitHub-Event header is missing",
-                    "suggestion": "Ensure GitHub is sending the correct webhook headers"
-                }
-            )
-        
-        if event_type != "pull_request":
-            return {
-                "message": f"Event type '{event_type}' not handled",
-                "status": "ignored",
-                "supported_events": ["pull_request"],
-                "received_event": event_type
-            }
-        
-        # Validate pull request data
-        if "pull_request" not in payload:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Missing pull request data",
-                    "message": "Payload does not contain pull_request object",
-                    "received_payload_keys": list(payload.keys()),
-                    "suggestion": "Ensure this is a valid pull request webhook event"
-                }
-            )
-        
-        # Handle the pull request event
-        try:
-            result = await webhook_handler.handle_pull_request_event(payload, db)
-            return result
-        except Exception as webhook_error:
-            db.rollback()
-            error_msg = f"Failed to process webhook event: {str(webhook_error)}"
-            print(f"Webhook processing error: {traceback.format_exc()}")
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "error": error_msg,
-                    "error_type": type(webhook_error).__name__,
-                    "event_type": event_type,
-                    "action": payload.get("action", "unknown"),
-                    "suggestion": "Check database connection and webhook payload structure"
-                }
-            )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = f"Unexpected error in webhook handler: {str(e)}"
-        print(f"Unexpected webhook error: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": error_msg,
-                "error_type": type(e).__name__,
-                "suggestion": "Check server logs for detailed error information"
-            }
-        )
 
 if __name__ == "__main__":
     import uvicorn
