@@ -1,5 +1,6 @@
 """
-Test file with security and performance issues for AI code review validation.
+Security vulnerabilities and performance issues for AI code review testing.
+This file contains intentional security flaws and performance problems.
 """
 
 import subprocess

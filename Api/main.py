@@ -274,85 +274,71 @@ async def webhook_debug(request: Request):
 
 @app.post("/webhooks/github")
 async def github_webhook(request: Request, db: Session = Depends(get_db)):
-    """Handle GitHub webhook events"""
+    """Handle GitHub webhook events - simplified to prevent timeouts"""
     try:
         # Get request body
         body = await request.body()
         if not body:
-            raise HTTPException(status_code=400, detail="Empty webhook payload")
+            return {"status": "error", "message": "Empty webhook payload"}
         
-        # Get headers and log them for debugging
+        # Get headers
         headers = dict(request.headers)
-        print(f"🔍 Received webhook headers: {list(headers.keys())}")
-        
         event_type = headers.get("X-GitHub-Event")
-        signature = headers.get("X-Hub-Signature-256")
         
-        # Log header values for debugging
-        print(f"📋 Event type: {event_type}")
-        print(f"📋 Signature present: {signature is not None}")
+        print(f"🔍 Webhook received: {event_type}")
         
-        # More flexible header checking
-        if not event_type:
-            # Try alternative header names
-            event_type = headers.get("x-github-event") or headers.get("X-GitHub-Event")
-            if not event_type:
-                # Return detailed error with available headers
-                available_headers = list(headers.keys())
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Missing X-GitHub-Event header. Available headers: {available_headers}"
-                )
-        
-        # Make signature optional for testing
-        if not signature:
-            print("⚠️ Warning: No signature provided, skipping verification")
-            signature = "no-signature"
-        
-        # Verify signature and process webhook
+        # Return immediate response to prevent timeout
+        # Process in background
         try:
-            # Process webhook quickly to avoid timeout
-            webhook_result = webhook_handler.handle_webhook(body, signature, event_type, db)
+            # Start background processing
+            asyncio.create_task(process_webhook_background(body, headers, db))
+            return {
+                "status": "success",
+                "message": "Webhook received",
+                "event_type": event_type
+            }
+        except Exception as e:
+            print(f"❌ Background task error: {e}")
+            return {
+                "status": "success",
+                "message": "Webhook received (processing failed)",
+                "event_type": event_type
+            }
             
-            # If webhook processing was successful and PR was stored, trigger AI review
-            if webhook_result.get("success") and webhook_result.get("pr_id"):
-                pr_id = webhook_result["pr_id"]
-                print(f"🚀 Triggering AI review for PR ID: {pr_id}")
-                
-                # Trigger AI review asynchronously (don't wait for it to complete)
-                try:
-                    # Use asyncio.create_task to run in background
-                    # This ensures webhook response is sent immediately
-                    asyncio.create_task(ai_review_service.process_pr_review(db, pr_id))
-                    print(f"✅ AI review task created for PR ID: {pr_id}")
-                except Exception as ai_error:
-                    print(f"⚠️ AI review trigger failed (non-blocking): {ai_error}")
-                    # Don't fail the webhook if AI review fails
-            else:
-                print(f"ℹ️ No AI review triggered: {webhook_result.get('message', 'Unknown reason')}")
-            
-            # Return response immediately
-            return webhook_result
-            
-        except Exception as webhook_error:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Webhook processing failed: {str(webhook_error)}"
-            )
-            
-    except HTTPException:
-        raise
     except Exception as e:
-        error_details = {
+        print(f"❌ Webhook error: {e}")
+        return {
             "status": "error",
-            "message": "Webhook processing failed",
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "full_traceback": traceback.format_exc()
+            "message": str(e)
         }
+
+async def process_webhook_background(body: bytes, headers: dict, db: Session):
+    """Process webhook in background"""
+    try:
+        event_type = headers.get("X-GitHub-Event")
+        signature = headers.get("X-Hub-Signature-256", "no-signature")
         
-        print(f"Webhook error: {error_details}")
-        raise HTTPException(status_code=500, detail=error_details)
+        print(f"🔄 Processing webhook: {event_type}")
+        
+        # Process webhook
+        webhook_result = webhook_handler.handle_webhook(body, signature, event_type, db)
+        
+        # Trigger AI review if PR was created
+        if webhook_result.get("success") and webhook_result.get("pr_id"):
+            pr_id = webhook_result["pr_id"]
+            print(f"🚀 Starting AI review for PR ID: {pr_id}")
+            
+            try:
+                asyncio.create_task(ai_review_service.process_pr_review(db, pr_id))
+                print(f"✅ AI review started for PR ID: {pr_id}")
+            except Exception as ai_error:
+                print(f"⚠️ AI review failed: {ai_error}")
+        
+        print(f"✅ Webhook processing completed: {event_type}")
+        
+    except Exception as e:
+        print(f"❌ Background processing failed: {e}")
+        print(f"❌ Error: {traceback.format_exc()}")
 
 @app.get("/db-test")
 async def database_connection_test(db: Session = Depends(get_db)):
