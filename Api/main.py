@@ -510,9 +510,9 @@ async def openai_test():
         try:
             client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
             
-            # Test with a simple completion
+            # Test with a simple completion using the configured model
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=config.OPENAI_MODEL,
                 messages=[{"role": "user", "content": "Hello"}],
                 max_tokens=5
             )
@@ -522,8 +522,23 @@ async def openai_test():
                 "message": "OpenAI API key is valid",
                 "key_present": True,
                 "key_preview": f"{config.OPENAI_API_KEY[:7]}***{config.OPENAI_API_KEY[-4:]}",
-                "model_used": "gpt-3.5-turbo",
-                "test_response": response.choices[0].message.content
+                "model_used": config.OPENAI_MODEL,
+                "model_source": "environment" if os.getenv("OPENAI_MODEL") else "default",
+                "test_response": response.choices[0].message.content,
+                "available_models": [
+                    "gpt-4o",           # Best quality, moderate cost
+                    "gpt-4o-mini",      # Good quality, very cheap
+                    "gpt-4-turbo",      # Good quality, moderate cost
+                    "gpt-3.5-turbo",    # Fast, very cheap
+                    "gpt-3.5-turbo-16k" # Fast, cheap, longer context
+                ],
+                "model_info": {
+                    "gpt-4o": "Best overall performance, 128K context, ~$0.01/$0.03 per 1K tokens",
+                    "gpt-4o-mini": "Great quality, 128K context, ~$0.00015/$0.0006 per 1K tokens",
+                    "gpt-4-turbo": "Good quality, 128K context, ~$0.01/$0.03 per 1K tokens",
+                    "gpt-3.5-turbo": "Fast & cheap, 16K context, ~$0.0005/$0.0015 per 1K tokens",
+                    "gpt-3.5-turbo-16k": "Fast & cheap, 16K context, ~$0.003/$0.004 per 1K tokens"
+                }
             }
             
         except Exception as api_error:
@@ -532,7 +547,12 @@ async def openai_test():
                 "message": f"OpenAI API error: {str(api_error)}",
                 "key_present": True,
                 "key_preview": f"{config.OPENAI_API_KEY[:7]}***{config.OPENAI_API_KEY[-4:]}",
-                "error_type": type(api_error).__name__
+                "model_used": config.OPENAI_MODEL,
+                "model_source": "environment" if os.getenv("OPENAI_MODEL") else "default",
+                "error_type": type(api_error).__name__,
+                "available_models": [
+                    "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "gpt-3.5-turbo-16k"
+                ]
             }
             
     except Exception as e:
