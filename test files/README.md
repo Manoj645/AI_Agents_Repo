@@ -4,7 +4,7 @@ This folder contains Python files designed to test your AI code review system. T
 
 ## Files Overview
 
-### 1. `test_python_file.py`
+### 1. `bad_code_example.py`
 **Focus**: Basic code quality violations
 - **Function Length**: `calculate_user_statistics()` exceeds 15 lines
 - **Variable Naming**: Poor names like `calc()`, `temp`, `cnt`
@@ -17,7 +17,7 @@ This folder contains Python files designed to test your AI code review system. T
 - **Security**: SQL injection vulnerability
 - **Performance**: Inefficient algorithms
 
-### 2. `test_security_issues.py`
+### 2. `security_vulnerabilities.py`
 **Focus**: Security and performance issues
 - **SQL Injection**: Direct string concatenation in queries
 - **Command Injection**: Unsafe subprocess calls
@@ -29,7 +29,7 @@ This folder contains Python files designed to test your AI code review system. T
 - **Magic Numbers**: Hardcoded values without constants
 - **Poor Error Handling**: Missing exception handling
 
-### 3. `test_subtle_issues.py`
+### 3. `subtle_issues.py`
 **Focus**: Subtle code quality issues
 - **Silent Failures**: Missing validation without proper error handling
 - **Inconsistent Error Handling**: Mixed exception handling patterns

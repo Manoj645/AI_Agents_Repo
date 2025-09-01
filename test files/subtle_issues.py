@@ -1,5 +1,6 @@
 """
-Test file with subtle code quality issues for AI code review validation.
+Subtle code quality issues for AI code review testing.
+This file contains less obvious violations that require careful analysis.
 """
 
 import logging

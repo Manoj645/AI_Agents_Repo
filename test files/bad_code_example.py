@@ -1,12 +1,10 @@
 """
-Test Python file for AI code review validation.
-This file intentionally violates several coding standards to test the AI agent.
+Bad code example with multiple violations for AI code review testing.
+This file intentionally violates several coding standards.
 """
 
-import sys, os, json
+import sys, os, json, requests, sqlalchemy
 from datetime import datetime
-import requests
-import sqlalchemy
 from models import User
 from utils import helpers
 
