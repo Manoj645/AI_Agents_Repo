@@ -178,7 +178,7 @@ class GitHubWebhookHandler:
             })
         return files
     
-    async def handle_pull_request_event(self, payload: Dict[str, Any], db: Session) -> Dict[str, Any]:
+    def handle_pull_request_event(self, payload: Dict[str, Any], db: Session) -> Dict[str, Any]:
         """Handle pull request webhook event"""
         try:
             action = payload.get("action")
