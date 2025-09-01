@@ -14,7 +14,7 @@ class AIConfig:
     
     # OpenAI Configuration
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
-    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
     
     # GitHub Configuration
     GITHUB_TOKEN: Optional[str] = os.getenv("GITHUB_TOKEN")
