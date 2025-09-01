@@ -406,7 +406,13 @@ async def ai_config_test():
         }
 
 @app.get("/github-auth-test")
-async def github_auth_test(owner: Optional[str] = None, repo: Optional[str] = None, pr: Optional[int] = None):
+async def github_auth_test(
+    request: Request,
+    owner: Optional[str] = None,
+    repo: Optional[str] = None,
+    pr: Optional[int] = None,
+    token: Optional[str] = None,
+):
     """Validate GitHub token and optionally check access to a specific PR.
 
     Usage:
@@ -417,13 +423,39 @@ async def github_auth_test(owner: Optional[str] = None, repo: Optional[str] = No
         from ai_agent.config import AIConfig
         import requests
 
-        token = AIConfig.GITHUB_TOKEN
-        headers = AIConfig.get_github_headers() if token else {}
+        # Allow token from query param or headers; fall back to env
+        # Preferred header: X-GitHub-Token; also support Authorization: token <TOKEN> or Bearer <TOKEN>
+        hdrs = dict(request.headers)
+        auth_hdr = hdrs.get("authorization") or hdrs.get("Authorization")
+        header_token = hdrs.get("X-GitHub-Token") or hdrs.get("x-github-token")
+
+        parsed_auth_token = None
+        if auth_hdr:
+            parts = auth_hdr.split()
+            if len(parts) == 2 and parts[0].lower() in ("token", "bearer"):
+                parsed_auth_token = parts[1]
+
+        effective_token = token or header_token or parsed_auth_token or AIConfig.GITHUB_TOKEN
+
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "PR-Review-AI-Agent/1.0",
+        }
+        if effective_token:
+            headers["Authorization"] = f"token {effective_token}"
 
         result = {
             "status": "success",
-            "token_present": bool(token and token not in ("", "your_github_token_here")),
-            "token_preview": (f"{token[:4]}***{token[-4:]}" if token and len(token) >= 10 else None),
+            "token_present": bool(effective_token and effective_token not in ("", "your_github_token_here")),
+            "token_preview": (
+                f"{effective_token[:4]}***{effective_token[-4:]}"
+                if effective_token and len(effective_token) >= 10 else None
+            ),
+            "token_source": (
+                "query_param" if token else (
+                    "header" if (header_token or parsed_auth_token) else "env"
+                )
+            ),
         }
 
         # Basic auth test against /user
