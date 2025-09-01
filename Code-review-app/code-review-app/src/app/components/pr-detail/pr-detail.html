@@ -1,1 +1,337 @@
-<p>pr-detail works!</p>
+<div class="pr-detail-container">
+  <!-- Loading spinner -->
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Loading pull request details...</p>
+  </div>
+
+  <!-- Error message -->
+  <div *ngIf="error && !loading" class="error-container">
+    <mat-icon color="warn">error</mat-icon>
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="refreshData()">Retry</button>
+  </div>
+
+  <!-- Main content -->
+  <div *ngIf="!loading && !error && pullRequest">
+    <!-- Header with back button -->
+    <div class="header">
+      <button mat-icon-button routerLink="/prs" class="back-button">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <div class="header-content">
+        <h1>Pull Request #{{pullRequest.pr_number}}</h1>
+        <p>{{pullRequest.title}}</p>
+      </div>
+    </div>
+
+    <!-- PR Information Card -->
+    <mat-card class="pr-info-card">
+      <mat-card-header>
+        <mat-card-title>Pull Request Details</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="pr-details">
+          <div class="detail-row">
+            <span class="label">Status:</span>
+            <mat-chip [color]="getStatusColor(pullRequest.status)" selected>
+              {{pullRequest.status}}
+            </mat-chip>
+          </div>
+          
+          <div class="detail-row">
+            <span class="label">Author:</span>
+            <span class="value">{{pullRequest.author}}</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="label">Repository:</span>
+            <span class="value">{{pullRequest.repository}}</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="label">Created:</span>
+            <span class="value">{{pullRequest.created_at | date:'medium'}}</span>
+          </div>
+          
+          <div class="detail-row" *ngIf="pullRequest.description">
+            <span class="label">Description:</span>
+            <span class="value description">{{pullRequest.description}}</span>
+          </div>
+          
+          <div class="detail-row" *ngIf="pullRequest.html_url">
+            <span class="label">GitHub URL:</span>
+            <a [href]="pullRequest.html_url" target="_blank" class="value link">
+              View on GitHub
+              <mat-icon>open_in_new</mat-icon>
+            </a>
+          </div>
+        </div>
+        
+        <div class="actions">
+          <button mat-raised-button color="primary" (click)="triggerReview()" 
+                  [disabled]="pullRequest.status !== 'open'">
+            <mat-icon>play_arrow</mat-icon>
+            Trigger AI Review
+          </button>
+          <button mat-stroked-button (click)="refreshData()">
+            <mat-icon>refresh</mat-icon>
+            Refresh
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Code Review Suggestions -->
+    <mat-card class="reviews-card">
+      <mat-card-header>
+        <mat-card-title>
+          Code Review Suggestions ({{codeReviews.length}})
+        </mat-card-title>
+        <mat-card-subtitle>
+          AI-generated suggestions based on custom code quality rules
+        </mat-card-subtitle>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <!-- No reviews message -->
+        <div *ngIf="codeReviews.length === 0" class="no-reviews">
+          <mat-icon color="disabled">rate_review</mat-icon>
+          <p>No code review suggestions found</p>
+          <p class="subtitle">Click "Trigger AI Review" to generate suggestions</p>
+        </div>
+
+        <!-- Reviews by severity -->
+        <div *ngIf="codeReviews.length > 0">
+          <!-- Critical Reviews -->
+          <div *ngIf="getReviewsBySeverity('critical').length > 0" class="severity-section critical">
+            <h3 class="severity-title">
+              <mat-icon color="warn">warning</mat-icon>
+              Critical Issues ({{getReviewsBySeverity('critical').length}})
+            </h3>
+            <div class="reviews-list">
+              <div *ngFor="let review of getReviewsBySeverity('critical')" class="review-item">
+                <div class="review-content">
+                  <div class="review-header">
+                    <mat-icon [matTooltip]="review.suggestion_type" class="type-icon">
+                      {{getTypeIcon(review.suggestion_type)}}
+                    </mat-icon>
+                    <h4 class="review-title">{{review.title}}</h4>
+                    <mat-chip [color]="getSeverityColor(review.severity)" selected>
+                      {{review.severity}}
+                    </mat-chip>
+                  </div>
+                  
+                  <div class="review-description" *ngIf="review.description">
+                    <p>{{review.description}}</p>
+                  </div>
+                  
+                  <div class="review-meta">
+                    <span class="file-path">
+                      <mat-icon>file_present</mat-icon>
+                      {{review.file_path}}
+                    </span>
+                    <span class="line-number" *ngIf="review.line_number">
+                      <mat-icon>code</mat-icon>
+                      Line {{review.line_number}}
+                    </span>
+                    <span class="rule-applied" *ngIf="review.rule_applied">
+                      <mat-icon>rule</mat-icon>
+                      {{review.rule_applied}}
+                    </span>
+                  </div>
+                  
+                  <div class="review-suggestion" *ngIf="review.suggestion">
+                    <h5>Suggestion:</h5>
+                    <div class="suggestion-content">
+                      <pre>{{review.suggestion}}</pre>
+                    </div>
+                  </div>
+                  
+                  <div class="review-actions">
+                    <a *ngIf="review.github_url" [href]="review.github_url" target="_blank" 
+                       mat-button color="primary">
+                      <mat-icon>open_in_new</mat-icon>
+                      View on GitHub
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- High Reviews -->
+          <div *ngIf="getReviewsBySeverity('high').length > 0" class="severity-section high">
+            <h3 class="severity-title">
+              <mat-icon color="accent">priority_high</mat-icon>
+              High Priority Issues ({{getReviewsBySeverity('high').length}})
+            </h3>
+            <div class="reviews-list">
+              <div *ngFor="let review of getReviewsBySeverity('high')" class="review-item">
+                <div class="review-content">
+                  <div class="review-header">
+                    <mat-icon [matTooltip]="review.suggestion_type" class="type-icon">
+                      {{getTypeIcon(review.suggestion_type)}}
+                    </mat-icon>
+                    <h4 class="review-title">{{review.title}}</h4>
+                    <mat-chip [color]="getSeverityColor(review.severity)" selected>
+                      {{review.severity}}
+                    </mat-chip>
+                  </div>
+                  
+                  <div class="review-description" *ngIf="review.description">
+                    <p>{{review.description}}</p>
+                  </div>
+                  
+                  <div class="review-meta">
+                    <span class="file-path">
+                      <mat-icon>file_present</mat-icon>
+                      {{review.file_path}}
+                    </span>
+                    <span class="line-number" *ngIf="review.line_number">
+                      <mat-icon>code</mat-icon>
+                      Line {{review.line_number}}
+                    </span>
+                    <span class="rule-applied" *ngIf="review.rule_applied">
+                      <mat-icon>rule</mat-icon>
+                      {{review.rule_applied}}
+                    </span>
+                  </div>
+                  
+                  <div class="review-suggestion" *ngIf="review.suggestion">
+                    <h5>Suggestion:</h5>
+                    <div class="suggestion-content">
+                      <pre>{{review.suggestion}}</pre>
+                    </div>
+                  </div>
+                  
+                  <div class="review-actions">
+                    <a *ngIf="review.github_url" [href]="review.github_url" target="_blank" 
+                       mat-button color="primary">
+                      <mat-icon>open_in_new</mat-icon>
+                      View on GitHub
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Medium Reviews -->
+          <div *ngIf="getReviewsBySeverity('medium').length > 0" class="severity-section medium">
+            <h3 class="severity-title">
+              <mat-icon color="primary">info</mat-icon>
+              Medium Priority Issues ({{getReviewsBySeverity('medium').length}})
+            </h3>
+            <div class="reviews-list">
+              <div *ngFor="let review of getReviewsBySeverity('medium')" class="review-item">
+                <div class="review-content">
+                  <div class="review-header">
+                    <mat-icon [matTooltip]="review.suggestion_type" class="type-icon">
+                      {{getTypeIcon(review.suggestion_type)}}
+                    </mat-icon>
+                    <h4 class="review-title">{{review.title}}</h4>
+                    <mat-chip [color]="getSeverityColor(review.severity)" selected>
+                      {{review.severity}}
+                    </mat-chip>
+                  </div>
+                  
+                  <div class="review-description" *ngIf="review.description">
+                    <p>{{review.description}}</p>
+                  </div>
+                  
+                  <div class="review-meta">
+                    <span class="file-path">
+                      <mat-icon>file_present</mat-icon>
+                      {{review.file_path}}
+                    </span>
+                    <span class="line-number" *ngIf="review.line_number">
+                      <mat-icon>code</mat-icon>
+                      Line {{review.line_number}}
+                    </span>
+                    <span class="rule-applied" *ngIf="review.rule_applied">
+                      <mat-icon>rule</mat-icon>
+                      {{review.rule_applied}}
+                    </span>
+                  </div>
+                  
+                  <div class="review-suggestion" *ngIf="review.suggestion">
+                    <h5>Suggestion:</h5>
+                    <div class="suggestion-content">
+                      <pre>{{review.suggestion}}</pre>
+                    </div>
+                  </div>
+                  
+                  <div class="review-actions">
+                    <a *ngIf="review.github_url" [href]="review.github_url" target="_blank" 
+                       mat-button color="primary">
+                      <mat-icon>open_in_new</mat-icon>
+                      View on GitHub
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Low Reviews -->
+          <div *ngIf="getReviewsBySeverity('low').length > 0" class="severity-section low">
+            <h3 class="severity-title">
+              <mat-icon color="default">lightbulb</mat-icon>
+              Low Priority Suggestions ({{getReviewsBySeverity('low').length}})
+            </h3>
+            <div class="reviews-list">
+              <div *ngFor="let review of getReviewsBySeverity('low')" class="review-item">
+                <div class="review-content">
+                  <div class="review-header">
+                    <mat-icon [matTooltip]="review.suggestion_type" class="type-icon">
+                      {{getTypeIcon(review.suggestion_type)}}
+                    </mat-icon>
+                    <h4 class="review-title">{{review.title}}</h4>
+                    <mat-chip [color]="getSeverityColor(review.severity)" selected>
+                      {{review.severity}}
+                    </mat-chip>
+                  </div>
+                  
+                  <div class="review-description" *ngIf="review.description">
+                    <p>{{review.description}}</p>
+                  </div>
+                  
+                  <div class="review-meta">
+                    <span class="file-path">
+                      <mat-icon>file_present</mat-icon>
+                      {{review.file_path}}
+                    </span>
+                    <span class="line-number" *ngIf="review.line_number">
+                      <mat-icon>code</mat-icon>
+                      Line {{review.line_number}}
+                    </span>
+                    <span class="rule-applied" *ngIf="review.rule_applied">
+                      <mat-icon>rule</mat-icon>
+                      {{review.rule_applied}}
+                    </span>
+                  </div>
+                  
+                  <div class="review-suggestion" *ngIf="review.suggestion">
+                    <h5>Suggestion:</h5>
+                    <div class="suggestion-content">
+                      <pre>{{review.suggestion}}</pre>
+                    </div>
+                  </div>
+                  
+                  <div class="review-actions">
+                    <a *ngIf="review.github_url" [href]="review.github_url" target="_blank" 
+                       mat-button color="primary">
+                      <mat-icon>open_in_new</mat-icon>
+                      View on GitHub
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

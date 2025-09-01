@@ -683,13 +683,18 @@ async def check_reviews(pr_id: int, db: Session = Depends(get_db)):
             "pr_number": pr.pr_number,
             "pr_title": pr.title,
             "reviews_count": len(reviews),
-            "reviews": [
+            "data": [
                 {
                     "id": review.id,
-                    "suggestion_type": review.suggestion_type,
-                    "severity": review.severity,
-                    "message": review.message,
+                    "file_path": review.file_path,
                     "line_number": review.line_number,
+                    "suggestion_type": review.suggestion_type.value,
+                    "severity": review.severity.value,
+                    "title": review.title,
+                    "description": review.description,
+                    "suggestion": review.suggestion,
+                    "github_url": review.github_url,
+                    "rule_applied": review.rule_applied,
                     "created_at": review.created_at.isoformat() if review.created_at else None
                 }
                 for review in reviews
