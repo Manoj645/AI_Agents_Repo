@@ -494,6 +494,7 @@ async def github_auth_test(
 async def openai_test():
     """Test OpenAI API key and connection"""
     try:
+        import os
         from ai_agent.config import AIConfig
         import openai
         
