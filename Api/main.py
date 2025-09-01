@@ -367,6 +367,43 @@ async def github_webhook(request: Request, db: Session = Depends(get_db)):
             "message": str(e)
         }
 
+@app.get("/ai-config-test")
+async def ai_config_test():
+    """Test AI agent configuration"""
+    try:
+        from ai_agent.config import AIConfig
+        
+        config = AIConfig()
+        
+        # Check if config file exists
+        import os
+        config_file_exists = os.path.exists('config.env')
+        
+        # Check environment variables
+        openai_key_set = bool(config.OPENAI_API_KEY and config.OPENAI_API_KEY != "your_openai_api_key_here")
+        github_token_set = bool(config.GITHUB_TOKEN and config.GITHUB_TOKEN != "your_github_token_here")
+        
+        # Validate configuration
+        is_valid = config.validate()
+        
+        return {
+            "status": "success",
+            "config_file_exists": config_file_exists,
+            "openai_api_key_set": openai_key_set,
+            "github_token_set": github_token_set,
+            "configuration_valid": is_valid,
+            "openai_model": config.OPENAI_MODEL,
+            "max_tokens": config.MAX_TOKENS,
+            "custom_rules_path": config.CUSTOM_RULES_PATH,
+            "custom_rules_exists": os.path.exists(config.CUSTOM_RULES_PATH)
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 @app.get("/check-reviews/{pr_id}")
 async def check_reviews(pr_id: int, db: Session = Depends(get_db)):
     """Check if code reviews exist for a specific PR"""

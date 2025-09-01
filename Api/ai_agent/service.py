@@ -21,6 +21,13 @@ class AIReviewService:
         try:
             print(f"🤖 Starting AI review process for PR ID: {pr_id}")
             
+            # Validate configuration first
+            if not self.config.validate():
+                return {
+                    "success": False, 
+                    "error": "AI Agent configuration is invalid. Please check OPENAI_API_KEY and GITHUB_TOKEN in config.env"
+                }
+            
             # Get PR information from database
             stmt = select(PullRequest).where(PullRequest.id == pr_id)
             pr = db.execute(stmt).scalar_one_or_none()
@@ -34,10 +41,12 @@ class AIReviewService:
             
             owner, repo_name = repo_parts
             
+            print(f"🔍 Fetching PR #{pr.pr_number} from {owner}/{repo_name}")
+            
             # Generate AI review
             review_result = self.review_generator.generate_review(owner, repo_name, pr.pr_number)
             if not review_result:
-                return {"success": False, "error": "Failed to generate AI review"}
+                return {"success": False, "error": "Failed to generate AI review - check logs for details"}
             
             # Store suggestions in database (only if there are meaningful suggestions)
             if review_result.suggestions:
