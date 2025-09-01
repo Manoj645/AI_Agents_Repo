@@ -319,19 +319,34 @@ async def github_webhook(request: Request, db: Session = Depends(get_db)):
                 pr_id = webhook_result["pr_id"]
                 print(f"🚀 Triggering AI review for PR ID: {pr_id}")
                 
-                # Trigger AI review asynchronously
+                # Trigger AI review asynchronously to avoid timeout
                 try:
-                    asyncio.create_task(ai_review_service.process_pr_review(db, pr_id))
+                    # Use asyncio.create_task for background processing
+                    task = asyncio.create_task(ai_review_service.process_pr_review(db, pr_id))
+                    
+                    # Add callback to log completion/errors
+                    def log_ai_result(task):
+                        try:
+                            result = task.result()
+                            print(f"✅ AI review completed successfully for PR ID: {pr_id}")
+                            print(f"📊 AI review result: {result}")
+                        except Exception as e:
+                            print(f"❌ AI review failed for PR ID: {pr_id}: {e}")
+                            print(f"❌ AI error traceback: {traceback.format_exc()}")
+                    
+                    task.add_done_callback(log_ai_result)
                     print(f"✅ AI review task created for PR ID: {pr_id}")
                 except Exception as ai_error:
-                    print(f"⚠️ AI review trigger failed: {ai_error}")
+                    print(f"❌ AI review task creation failed: {ai_error}")
+                    print(f"❌ AI error traceback: {traceback.format_exc()}")
             
             return {
                 "status": "success",
                 "message": "Webhook processed successfully",
                 "event_type": event_type,
                 "pr_id": webhook_result.get("pr_id"),
-                "result": webhook_result
+                "result": webhook_result,
+                "ai_review_triggered": webhook_result.get("success") and webhook_result.get("pr_id") is not None
             }
             
         except Exception as webhook_error:
@@ -347,6 +362,100 @@ async def github_webhook(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"❌ Webhook endpoint error: {e}")
         print(f"❌ Error traceback: {traceback.format_exc()}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+@app.get("/check-reviews/{pr_id}")
+async def check_reviews(pr_id: int, db: Session = Depends(get_db)):
+    """Check if code reviews exist for a specific PR"""
+    try:
+        from sqlalchemy import select
+        from models import PullRequest, CodeReview
+        
+        # Check if PR exists
+        pr_stmt = select(PullRequest).where(PullRequest.id == pr_id)
+        pr = db.execute(pr_stmt).scalar_one_or_none()
+        
+        if not pr:
+            return {
+                "status": "error",
+                "message": f"PR with ID {pr_id} not found"
+            }
+        
+        # Check for code reviews
+        review_stmt = select(CodeReview).where(CodeReview.pull_request_id == pr_id)
+        reviews = db.execute(review_stmt).scalars().all()
+        
+        return {
+            "status": "success",
+            "pr_id": pr_id,
+            "pr_number": pr.pr_number,
+            "pr_title": pr.title,
+            "reviews_count": len(reviews),
+            "reviews": [
+                {
+                    "id": review.id,
+                    "suggestion_type": review.suggestion_type,
+                    "severity": review.severity,
+                    "message": review.message,
+                    "line_number": review.line_number,
+                    "created_at": review.created_at.isoformat() if review.created_at else None
+                }
+                for review in reviews
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+@app.post("/trigger-ai-review/{pr_id}")
+async def trigger_ai_review(pr_id: int, db: Session = Depends(get_db)):
+    """Manually trigger AI review for a specific PR"""
+    try:
+        print(f"🚀 Manually triggering AI review for PR ID: {pr_id}")
+        
+        # Check if PR exists
+        from sqlalchemy import select
+        from models import PullRequest
+        
+        stmt = select(PullRequest).where(PullRequest.id == pr_id)
+        pr = db.execute(stmt).scalar_one_or_none()
+        
+        if not pr:
+            return {
+                "status": "error",
+                "message": f"PR with ID {pr_id} not found"
+            }
+        
+        print(f"📋 Found PR: #{pr.pr_number} - {pr.title}")
+        
+        # Trigger AI review
+        try:
+            ai_result = await ai_review_service.process_pr_review(db, pr_id)
+            return {
+                "status": "success",
+                "message": "AI review completed",
+                "pr_id": pr_id,
+                "pr_number": pr.pr_number,
+                "result": ai_result
+            }
+        except Exception as ai_error:
+            print(f"❌ AI review failed: {ai_error}")
+            print(f"❌ AI error traceback: {traceback.format_exc()}")
+            return {
+                "status": "error",
+                "message": f"AI review failed: {str(ai_error)}",
+                "pr_id": pr_id,
+                "error_traceback": traceback.format_exc()
+            }
+            
+    except Exception as e:
+        print(f"❌ Manual AI review trigger failed: {e}")
         return {
             "status": "error",
             "message": str(e)
