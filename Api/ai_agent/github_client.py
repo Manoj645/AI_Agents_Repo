@@ -73,7 +73,9 @@ class GitHubClient:
     def get_file_content(self, owner: str, repo: str, file_path: str, ref: str) -> Optional[GitHubFileContent]:
         """Get file content from GitHub"""
         try:
-            url = f"{self.base_url}/repos/{owner}/{repo}/contents/{file_path}"
+            # Handle file paths with spaces by URL encoding
+            encoded_file_path = file_path.replace(" ", "%20")
+            url = f"{self.base_url}/repos/{owner}/{repo}/contents/{encoded_file_path}"
             params = {"ref": ref}
             
             print(f"📥 Fetching file content: {url}?ref={ref}")
@@ -84,15 +86,26 @@ class GitHubClient:
                 # Try with HEAD if specific ref fails
                 params = {"ref": "HEAD"}
                 response = requests.get(url, headers=self.headers, params=params, timeout=30)
+                
+                # If still 404, try with main branch
+                if response.status_code == 404:
+                    print(f"📥 File not found at HEAD, trying main branch...")
+                    params = {"ref": "main"}
+                    response = requests.get(url, headers=self.headers, params=params, timeout=30)
             
             response.raise_for_status()
             file_data = response.json()
             
+            print(f"✅ Successfully fetched file: {file_data.get('name', 'unknown')}")
+            print(f"📏 File size: {file_data.get('size', 0)} bytes")
+            
             # Decode content
             if file_data["encoding"] == "base64":
                 content = base64.b64decode(file_data["content"]).decode("utf-8")
+                print(f"📝 Content length: {len(content)} characters")
             else:
                 content = file_data["content"]
+                print(f"📝 Content length: {len(content)} characters")
             
             file_content = GitHubFileContent(
                 filename=file_data["name"],

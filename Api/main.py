@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import select, text
 from sqlmodel import SQLModel
@@ -16,6 +17,15 @@ from webhooks import GitHubWebhookHandler
 from ai_agent.service import AIReviewService
 
 app = FastAPI(title="PR Review AI Agent", version="1.0.0")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 # Initialize webhook handler
 webhook_handler = GitHubWebhookHandler()
@@ -490,15 +500,97 @@ async def github_auth_test(
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.get("/github-debug/{owner}/{repo}/{pr_number}")
+async def github_debug(owner: str, repo: str, pr_number: int):
+    """Debug GitHub API integration to see what files and content are being fetched"""
+    try:
+        from ai_agent.github_client import GitHubClient
+        from ai_agent.review_generator import ReviewGenerator
+        
+        print(f"🔍 Debugging GitHub API for PR #{pr_number} in {owner}/{repo}")
+        
+        # Test GitHub client directly
+        github_client = GitHubClient()
+        
+        # Get PR info
+        print(f"📥 Fetching PR info...")
+        pr_info = github_client.get_pr_info(owner, repo, pr_number)
+        
+        if not pr_info:
+            return {
+                "status": "error",
+                "message": "Failed to fetch PR info from GitHub API"
+            }
+        
+        # Get file details
+        files_debug = []
+        for file_diff in pr_info.files:
+            print(f"📁 Analyzing file: {file_diff.filename}")
+            
+            # Get file content
+            file_content = github_client.get_file_content(owner, repo, file_diff.filename, pr_info.head_sha)
+            
+            if file_content:
+                # Check content length and preview
+                content_preview = file_content.content[:200] + "..." if len(file_content.content) > 200 else file_content.content
+                files_debug.append({
+                    "filename": file_diff.filename,
+                    "status": file_diff.status,
+                    "changes": file_diff.changes,
+                    "additions": file_diff.additions,
+                    "deletions": file_diff.deletions,
+                    "content_length": len(file_content.content),
+                    "content_preview": content_preview,
+                    "sha": file_content.sha,
+                    "encoding": file_content.encoding
+                })
+                print(f"  ✅ Content fetched: {len(file_content.content)} chars")
+            else:
+                files_debug.append({
+                    "filename": file_diff.filename,
+                    "status": file_diff.status,
+                    "changes": file_diff.changes,
+                    "additions": file_diff.additions,
+                    "deletions": file_diff.deletions,
+                    "error": "Failed to fetch content"
+                })
+                print(f"  ❌ Failed to fetch content")
+        
+        return {
+            "status": "success",
+            "pr_info": {
+                "number": pr_info.number,
+                "title": pr_info.title,
+                "head_sha": pr_info.head_sha,
+                "base_sha": pr_info.base_sha,
+                "head_ref": pr_info.head_ref,
+                "base_ref": pr_info.base_ref,
+                "repository": pr_info.repository
+            },
+            "files_count": len(pr_info.files),
+            "files_debug": files_debug
+        }
+        
+    except Exception as e:
+        print(f"❌ Error in GitHub debug: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 @app.get("/openai-test")
-async def openai_test():
-    """Test OpenAI API key and connection"""
+async def openai_test(model: Optional[str] = None):
+    """Test OpenAI API key and connection with optional model parameter"""
     try:
         import os
         from ai_agent.config import AIConfig
         import openai
+        from openai import AsyncOpenAI
         
         config = AIConfig()
+        
+        # Use provided model or fall back to configured model
+        test_model = model or config.OPENAI_MODEL
         
         if not config.OPENAI_API_KEY or config.OPENAI_API_KEY == "your_openai_api_key_here":
             return {
@@ -509,11 +601,13 @@ async def openai_test():
         
         # Test the API key
         try:
-            client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
+            # client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
+            client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
             
-            # Test with a simple completion using the configured model
-            response = client.chat.completions.create(
-                model=config.OPENAI_MODEL,
+            
+            # Test with a simple completion using the test model
+            response = await client.chat.completions.create(
+                model=test_model,
                 messages=[{"role": "user", "content": "Hello"}],
                 max_tokens=5
             )
@@ -523,8 +617,8 @@ async def openai_test():
                 "message": "OpenAI API key is valid",
                 "key_present": True,
                 "key_preview": f"{config.OPENAI_API_KEY[:7]}***{config.OPENAI_API_KEY[-4:]}",
-                "model_used": config.OPENAI_MODEL,
-                "model_source": "environment" if os.getenv("OPENAI_MODEL") else "default",
+                "model_used": test_model,
+                "model_source": "parameter" if model else ("environment" if os.getenv("OPENAI_MODEL") else "default"),
                 "test_response": response.choices[0].message.content,
                 "available_models": [
                     "gpt-4o",           # Best quality, moderate cost
@@ -548,8 +642,8 @@ async def openai_test():
                 "message": f"OpenAI API error: {str(api_error)}",
                 "key_present": True,
                 "key_preview": f"{config.OPENAI_API_KEY[:7]}***{config.OPENAI_API_KEY[-4:]}",
-                "model_used": config.OPENAI_MODEL,
-                "model_source": "environment" if os.getenv("OPENAI_MODEL") else "default",
+                "model_used": test_model,
+                "model_source": "parameter" if model else ("environment" if os.getenv("OPENAI_MODEL") else "default"),
                 "error_type": type(api_error).__name__,
                 "available_models": [
                     "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "gpt-3.5-turbo-16k"

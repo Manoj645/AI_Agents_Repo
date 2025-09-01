@@ -27,11 +27,18 @@ class CodeAnalyzer:
         """Load custom code review rules from markdown file"""
         try:
             rules_path = self.config.CUSTOM_RULES_PATH
+            print(f"🔍 Loading custom rules from: {rules_path}")
+            print(f"🔍 Current working directory: {os.getcwd()}")
+            print(f"🔍 Rules file exists: {os.path.exists(rules_path)}")
+            
             if os.path.exists(rules_path):
                 with open(rules_path, 'r', encoding='utf-8') as f:
-                    return f.read()
+                    rules_content = f.read()
+                    print(f"✅ Successfully loaded custom rules ({len(rules_content)} characters)")
+                    return rules_content
             else:
                 print(f"⚠️ Custom rules file not found: {rules_path}")
+                print(f"⚠️ Trying absolute path: {os.path.abspath(rules_path)}")
                 return self._get_default_rules()
         except Exception as e:
             print(f"⚠️ Error loading custom rules: {e}")
@@ -62,15 +69,25 @@ class CodeAnalyzer:
             # Prepare analysis prompt
             analysis_prompt = self._create_analysis_prompt(file_content, repository, branch)
             
+            print(f"🤖 Analyzing file: {file_content.filename}")
+            print(f"📏 File size: {file_content.size} bytes")
+            print(f"📝 Content length: {len(file_content.content)} characters")
+            print(f"🔍 Custom rules loaded: {len(self.custom_rules)} characters")
+            
             # Get AI analysis
+            print(f"🚀 Sending to OpenAI for analysis...")
             response = self.llm.invoke([
                 SystemMessage(content="You are an expert Python code reviewer. Analyze the code and provide specific, actionable suggestions."),
                 HumanMessage(content=analysis_prompt)
             ])
             
+            print(f"📥 AI Response received: {len(response.content)} characters")
+            print(f"📄 AI Response preview: {response.content[:200]}...")
+            
             # Parse suggestions
             suggestions = self._parse_ai_response(response.content, file_content, repository, branch)
             
+            print(f"✅ Parsed {len(suggestions)} suggestions")
             return suggestions
             
         except Exception as e:
@@ -109,13 +126,19 @@ class CodeAnalyzer:
         {context_info}
         {diff_info}
         
+        ## CRITICAL: You MUST find violations!
+        
         ## Analysis Instructions:
-        1. Review the code against the custom rules above
-        2. Focus on the changed lines and their context
-        3. Provide specific, actionable suggestions
-        4. Include line numbers where applicable
-        5. Categorize suggestions by type and severity
-        6. Only provide suggestions if there are actual issues to address
+        1. CAREFULLY review the code against EVERY custom rule above
+        2. Look for ANY violations, no matter how small
+        3. Be STRICT and thorough - don't let anything slide
+        4. Focus on the changed lines and their context
+        5. Provide specific, actionable suggestions
+        6. Include line numbers where applicable
+        7. Categorize suggestions by type and severity
+        
+        ## IMPORTANT: If you find ANY violations, you MUST provide suggestions.
+        ## Only respond with "CODE_QUALITY_GOOD" if the code is PERFECT.
         
         ## Response Format:
         For each suggestion, provide:
@@ -125,6 +148,14 @@ class CodeAnalyzer:
         - Description: Detailed explanation of the issue
         - Suggestion: Specific recommendation for improvement
         - Line Number: The specific line(s) affected
+        
+        ## Example Response:
+        - Type: style
+        - Severity: medium
+        - Title: Function too long
+        - Description: Function exceeds 15 lines limit
+        - Suggestion: Break into smaller functions
+        - Line Number: 25-45
         
         If the code looks good and follows all rules, respond with: "CODE_QUALITY_GOOD"
         """
@@ -142,38 +173,76 @@ class CodeAnalyzer:
         """Parse AI response into structured suggestions"""
         suggestions = []
         
+        print(f"🔍 Parsing AI response...")
+        print(f"📄 Response length: {len(response)} characters")
+        
         # Check if code quality is good
         if "CODE_QUALITY_GOOD" in response.upper():
+            print(f"✅ AI says code quality is good")
             return []
         
-        # Parse suggestions (this is a simplified parser - you might want to enhance it)
+        # Parse suggestions with enhanced pattern matching
         lines = response.split('\n')
         current_suggestion = {}
         
         for line in lines:
             line = line.strip()
             
-            # Look for suggestion patterns
-            if line.startswith('- Type:') or line.startswith('Type:'):
+            # Look for suggestion patterns (handle both markdown and plain text)
+            if any(line.startswith(pattern) for pattern in ['- Type:', 'Type:', '**Type**:', '**Type**:', '1. **Type**:']):
                 if current_suggestion and 'type' in current_suggestion:
                     # Save previous suggestion
                     suggestion = self._create_suggestion_from_dict(current_suggestion, file_content, repository, branch)
                     if suggestion:
                         suggestions.append(suggestion)
                 
-                # Start new suggestion
-                current_suggestion = {'type': line.split(':', 1)[1].strip()}
+                # Start new suggestion - extract type from various formats
+                if '**Type**:' in line:
+                    current_suggestion['type'] = line.split('**Type**:', 1)[1].strip()
+                elif 'Type:' in line:
+                    current_suggestion['type'] = line.split('Type:', 1)[1].strip()
+                else:
+                    current_suggestion['type'] = line.split(':', 1)[1].strip()
                 
-            elif line.startswith('- Severity:') or line.startswith('Severity:'):
-                current_suggestion['severity'] = line.split(':', 1)[1].strip()
-            elif line.startswith('- Title:') or line.startswith('Title:'):
-                current_suggestion['title'] = line.split(':', 1)[1].strip()
-            elif line.startswith('- Description:') or line.startswith('Description:'):
-                current_suggestion['description'] = line.split(':', 1)[1].strip()
-            elif line.startswith('- Suggestion:') or line.startswith('Suggestion:'):
-                current_suggestion['suggestion'] = line.split(':', 1)[1].strip()
-            elif line.startswith('- Line Number:') or line.startswith('Line Number:'):
-                current_suggestion['line_number'] = line.split(':', 1)[1].strip()
+            elif any(line.startswith(pattern) for pattern in ['- Severity:', 'Severity:', '**Severity**:', '**Severity**:']):
+                if '**Severity**:' in line:
+                    current_suggestion['severity'] = line.split('**Severity**:', 1)[1].strip()
+                elif 'Severity:' in line:
+                    current_suggestion['severity'] = line.split('Severity:', 1)[1].strip()
+                else:
+                    current_suggestion['severity'] = line.split(':', 1)[1].strip()
+                    
+            elif any(line.startswith(pattern) for pattern in ['- Title:', 'Title:', '**Title**:', '**Title**:']):
+                if '**Title**:' in line:
+                    current_suggestion['title'] = line.split('**Title**:', 1)[1].strip()
+                elif 'Title:' in line:
+                    current_suggestion['title'] = line.split('Title:', 1)[1].strip()
+                else:
+                    current_suggestion['title'] = line.split(':', 1)[1].strip()
+                    
+            elif any(line.startswith(pattern) for pattern in ['- Description:', 'Description:', '**Description**:', '**Description**:']):
+                if '**Description**:' in line:
+                    current_suggestion['description'] = line.split('**Description**:', 1)[1].strip()
+                elif 'Description:' in line:
+                    current_suggestion['description'] = line.split('Description:', 1)[1].strip()
+                else:
+                    current_suggestion['description'] = line.split(':', 1)[1].strip()
+                    
+            elif any(line.startswith(pattern) for pattern in ['- Suggestion:', 'Suggestion:', '**Suggestion**:', '**Suggestion**:']):
+                if '**Suggestion**:' in line:
+                    current_suggestion['suggestion'] = line.split('**Suggestion**:', 1)[1].strip()
+                elif 'Suggestion:' in line:
+                    current_suggestion['suggestion'] = line.split('Suggestion:', 1)[1].strip()
+                else:
+                    current_suggestion['suggestion'] = line.split(':', 1)[1].strip()
+                    
+            elif any(line.startswith(pattern) for pattern in ['- Line Number:', 'Line Number:', '**Line Number**:', '**Line Number**:']):
+                if '**Line Number**:' in line:
+                    current_suggestion['line_number'] = line.split('**Line Number**:', 1)[1].strip()
+                elif 'Line Number:' in line:
+                    current_suggestion['line_number'] = line.split('Line Number:', 1)[1].strip()
+                else:
+                    current_suggestion['line_number'] = line.split(':', 1)[1].strip()
         
         # Add the last suggestion
         if current_suggestion and 'type' in current_suggestion:
