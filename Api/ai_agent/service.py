@@ -22,7 +22,7 @@ class AIReviewService:
             print(f"🤖 Starting AI review process for PR ID: {pr_id}")
             
             # Validate configuration first
-            if not self.config.validate():
+            if not AIConfig.validate():
                 return {
                     "success": False, 
                     "error": "AI Agent configuration is invalid. Please check OPENAI_API_KEY and GITHUB_TOKEN in config.env"
