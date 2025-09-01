@@ -1,0 +1,198 @@
+<div class="pr-list-container">
+  <!-- Header -->
+  <div class="header">
+    <h1>Pull Requests</h1>
+    <p>Manage and review all pull requests from your repositories</p>
+  </div>
+
+  <!-- Loading spinner -->
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Loading pull requests...</p>
+  </div>
+
+  <!-- Error message -->
+  <div *ngIf="error && !loading" class="error-container">
+    <mat-icon color="warn">error</mat-icon>
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="refreshData()">Retry</button>
+  </div>
+
+  <!-- Main content -->
+  <div *ngIf="!loading && !error">
+    <!-- Statistics Cards -->
+    <div class="stats-grid">
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <div class="stat-content">
+            <mat-icon class="stat-icon" color="primary">list</mat-icon>
+            <div class="stat-text">
+              <h3>Total PRs</h3>
+              <p class="stat-number">{{allPRs.length}}</p>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <div class="stat-content">
+            <mat-icon class="stat-icon" color="accent">check_circle</mat-icon>
+            <div class="stat-text">
+              <h3>Open PRs</h3>
+              <p class="stat-number">{{getStatusCount('open')}}</p>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <div class="stat-content">
+            <mat-icon class="stat-icon" color="warn">merge</mat-icon>
+            <div class="stat-text">
+              <h3>Merged PRs</h3>
+              <p class="stat-number">{{getStatusCount('merged')}}</p>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <div class="stat-content">
+            <mat-icon class="stat-icon" color="default">close</mat-icon>
+            <div class="stat-text">
+              <h3>Closed PRs</h3>
+              <p class="stat-number">{{getStatusCount('closed')}}</p>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Filters and Search -->
+    <mat-card class="filters-card">
+      <mat-card-content>
+        <div class="filters-container">
+          <div class="search-container">
+            <mat-form-field appearance="outline" class="search-field">
+              <mat-label>Search PRs</mat-label>
+              <input matInput [(ngModel)]="searchTerm" (input)="onSearchChange()" 
+                     placeholder="Search by title, author, repository...">
+              <mat-icon matSuffix>search</mat-icon>
+            </mat-form-field>
+          </div>
+
+          <div class="filter-container">
+            <mat-form-field appearance="outline">
+              <mat-label>Status</mat-label>
+              <mat-select [(ngModel)]="selectedStatus" (selectionChange)="onStatusChange()">
+                <mat-option value="all">All ({{allPRs.length}})</mat-option>
+                <mat-option value="open">Open ({{getStatusCount('open')}})</mat-option>
+                <mat-option value="merged">Merged ({{getStatusCount('merged')}})</mat-option>
+                <mat-option value="closed">Closed ({{getStatusCount('closed')}})</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <div class="actions-container">
+            <button mat-raised-button color="primary" (click)="refreshData()">
+              <mat-icon>refresh</mat-icon>
+              Refresh
+            </button>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- PR List -->
+    <mat-card class="pr-list-card">
+      <mat-card-header>
+        <mat-card-title>
+          Pull Requests ({{filteredPRs.length}} found)
+        </mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <div *ngIf="filteredPRs.length > 0; else noPRs" class="pr-list">
+          <mat-list>
+            <mat-list-item *ngFor="let pr of getPaginatedPRs()" class="pr-item">
+              <div class="pr-content">
+                <div class="pr-info">
+                  <div class="pr-header">
+                    <h3 class="pr-title">{{pr.title}}</h3>
+                    <div class="pr-meta">
+                      <span class="pr-number">#{{pr.pr_number}}</span>
+                      <span class="pr-author">by {{pr.author}}</span>
+                      <span class="pr-repo">{{pr.repository}}</span>
+                      <span class="pr-date">{{pr.created_at | date:'short'}}</span>
+                    </div>
+                  </div>
+                  
+                  <p class="pr-description" *ngIf="pr.description">
+                    {{pr.description}}
+                  </p>
+                  
+                  <div class="pr-stats" *ngIf="pr.files">
+                    <span class="stat">
+                      <mat-icon>add</mat-icon>
+                      {{getTotalAdditions(pr)}} additions
+                    </span>
+                    <span class="stat">
+                      <mat-icon>remove</mat-icon>
+                      {{getTotalDeletions(pr)}} deletions
+                    </span>
+                    <span class="stat">
+                      <mat-icon>file_copy</mat-icon>
+                      {{pr.files.length}} files changed
+                    </span>
+                  </div>
+                </div>
+                
+                <div class="pr-actions">
+                  <mat-chip [color]="getStatusColor(pr.status)" selected>
+                    {{pr.status}}
+                  </mat-chip>
+                  
+                  <button mat-icon-button (click)="triggerReview(pr.id)" 
+                          matTooltip="Trigger AI Review"
+                          [disabled]="pr.status !== 'open'">
+                    <mat-icon>play_arrow</mat-icon>
+                  </button>
+                  
+                  <button mat-icon-button [routerLink]="['/prs', pr.id]" 
+                          matTooltip="View Details">
+                    <mat-icon>visibility</mat-icon>
+                  </button>
+                </div>
+              </div>
+            </mat-list-item>
+          </mat-list>
+        </div>
+        
+        <ng-template #noPRs>
+          <div class="no-data">
+            <mat-icon color="disabled">inbox</mat-icon>
+            <p>No pull requests found</p>
+            <p *ngIf="searchTerm || selectedStatus !== 'all'" class="no-data-subtitle">
+              Try adjusting your search or filter criteria
+            </p>
+          </div>
+        </ng-template>
+      </mat-card-content>
+      
+      <!-- Pagination -->
+      <mat-card-footer *ngIf="filteredPRs.length > 0">
+        <mat-paginator 
+          [length]="totalItems"
+          [pageSize]="pageSize"
+          [pageSizeOptions]="pageSizeOptions"
+          [pageIndex]="currentPage"
+          (page)="onPageChange($event)"
+          showFirstLastButtons>
+        </mat-paginator>
+      </mat-card-footer>
+    </mat-card>
+  </div>
+</div>

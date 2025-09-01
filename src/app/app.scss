@@ -1,0 +1,38 @@
+.toolbar-title {
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.main-content {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: calc(100vh - 128px);
+}
+
+.footer {
+  background-color: #f5f5f5;
+  padding: 1rem;
+  margin-top: 2rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.footer-content {
+  text-align: center;
+  color: #666;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+nav a {
+  margin-left: 1rem;
+}
+
+nav a.mat-accent {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}

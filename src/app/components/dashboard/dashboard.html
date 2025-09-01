@@ -1,0 +1,99 @@
+<div class="dashboard">
+  <mat-card class="welcome-card">
+    <mat-card-header>
+      <mat-card-title>Welcome to AI Code Review Agent</mat-card-title>
+      <mat-card-subtitle>Intelligent code review powered by OpenAI GPT-4 and custom rules</mat-card-subtitle>
+    </mat-card-header>
+  </mat-card>
+
+  <div class="stats-grid">
+    <mat-card class="stat-card">
+      <mat-card-content>
+        <div class="stat-content">
+          <mat-icon class="stat-icon" color="primary">check_circle</mat-icon>
+          <div class="stat-text">
+            <h3>Pull Requests</h3>
+            <p class="stat-number">{{prCount || 0}}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="stat-card">
+      <mat-card-content>
+        <div class="stat-content">
+          <mat-icon class="stat-icon" color="accent">lightbulb</mat-icon>
+          <div class="stat-text">
+            <h3>Code Reviews</h3>
+            <p class="stat-number">{{reviewCount || 0}}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="stat-card">
+      <mat-card-content>
+        <div class="stat-content">
+          <mat-icon class="stat-icon" color="warn">warning</mat-icon>
+          <div class="stat-text">
+            <h3>Suggestions</h3>
+            <p class="stat-number">{{suggestionCount || 0}}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <div class="content-grid">
+    <mat-card class="content-card">
+      <mat-card-header>
+        <mat-card-title>Recent Pull Requests</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="recentPRs && recentPRs.length > 0; else noPRs" class="pr-list">
+          <mat-list>
+            <mat-list-item *ngFor="let pr of recentPRs" class="pr-item">
+              <div class="pr-content">
+                <div class="pr-info">
+                  <h4 class="pr-title">{{pr.title}}</h4>
+                  <p class="pr-meta">#{{pr.pr_number}} by {{pr.author}}</p>
+                </div>
+                <mat-chip [color]="getStatusColor(pr.status)" selected>
+                  {{pr.status}}
+                </mat-chip>
+              </div>
+            </mat-list-item>
+          </mat-list>
+        </div>
+        <ng-template #noPRs>
+          <div class="no-data">
+            <mat-icon color="disabled">inbox</mat-icon>
+            <p>No pull requests found</p>
+          </div>
+        </ng-template>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="content-card">
+      <mat-card-header>
+        <mat-card-title>Quick Actions</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="action-buttons">
+          <button mat-raised-button color="primary" routerLink="/prs" class="action-button">
+            <mat-icon>list</mat-icon>
+            View All Pull Requests
+          </button>
+          <button mat-raised-button color="accent" routerLink="/reviews" class="action-button">
+            <mat-icon>rate_review</mat-icon>
+            View Code Reviews
+          </button>
+          <button mat-stroked-button (click)="refreshData()" class="action-button">
+            <mat-icon>refresh</mat-icon>
+            Refresh Data
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

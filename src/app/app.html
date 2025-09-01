@@ -1,0 +1,19 @@
+<mat-toolbar color="primary" class="mat-elevation-z4">
+  <span class="toolbar-title">AI Code Review Agent</span>
+  <span class="toolbar-spacer"></span>
+  <nav>
+    <a mat-button routerLink="/" routerLinkActive="mat-accent">Dashboard</a>
+    <a mat-button routerLink="/prs" routerLinkActive="mat-accent">Pull Requests</a>
+    <a mat-button routerLink="/reviews" routerLinkActive="mat-accent">Code Reviews</a>
+  </nav>
+</mat-toolbar>
+
+<main class="main-content">
+  <router-outlet></router-outlet>
+</main>
+
+<footer class="footer">
+  <div class="footer-content">
+    <p>&copy; 2025 AI Code Review Agent. Powered by OpenAI and Angular.</p>
+  </div>
+</footer>
