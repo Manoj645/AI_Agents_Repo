@@ -490,6 +490,57 @@ async def github_auth_test(
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.get("/openai-test")
+async def openai_test():
+    """Test OpenAI API key and connection"""
+    try:
+        from ai_agent.config import AIConfig
+        import openai
+        
+        config = AIConfig()
+        
+        if not config.OPENAI_API_KEY or config.OPENAI_API_KEY == "your_openai_api_key_here":
+            return {
+                "status": "error",
+                "message": "OpenAI API key not set",
+                "key_present": False
+            }
+        
+        # Test the API key
+        try:
+            client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
+            
+            # Test with a simple completion
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Hello"}],
+                max_tokens=5
+            )
+            
+            return {
+                "status": "success",
+                "message": "OpenAI API key is valid",
+                "key_present": True,
+                "key_preview": f"{config.OPENAI_API_KEY[:7]}***{config.OPENAI_API_KEY[-4:]}",
+                "model_used": "gpt-3.5-turbo",
+                "test_response": response.choices[0].message.content
+            }
+            
+        except Exception as api_error:
+            return {
+                "status": "error",
+                "message": f"OpenAI API error: {str(api_error)}",
+                "key_present": True,
+                "key_preview": f"{config.OPENAI_API_KEY[:7]}***{config.OPENAI_API_KEY[-4:]}",
+                "error_type": type(api_error).__name__
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 @app.get("/check-reviews/{pr_id}")
 async def check_reviews(pr_id: int, db: Session = Depends(get_db)):
     """Check if code reviews exist for a specific PR"""

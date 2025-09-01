@@ -76,7 +76,15 @@ class GitHubClient:
             url = f"{self.base_url}/repos/{owner}/{repo}/contents/{file_path}"
             params = {"ref": ref}
             
+            print(f"📥 Fetching file content: {url}?ref={ref}")
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            
+            if response.status_code == 404:
+                print(f"📥 File not found at ref {ref}, trying HEAD...")
+                # Try with HEAD if specific ref fails
+                params = {"ref": "HEAD"}
+                response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            
             response.raise_for_status()
             file_data = response.json()
             
