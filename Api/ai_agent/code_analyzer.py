@@ -185,71 +185,76 @@ class CodeAnalyzer:
         lines = response.split('\n')
         current_suggestion = {}
         
-        for line in lines:
+        print(f"🔍 Parsing {len(lines)} lines...")
+        
+        for i, line in enumerate(lines):
             line = line.strip()
+            print(f"📝 Line {i+1}: {line[:100]}...")
             
             # Look for suggestion patterns (handle both markdown and plain text)
-            if any(line.startswith(pattern) for pattern in ['- Type:', 'Type:', '**Type**:', '**Type**:', '1. **Type**:']):
+            if any(pattern in line for pattern in ['Type:', '**Type**:']):
                 if current_suggestion and 'type' in current_suggestion:
                     # Save previous suggestion
+                    print(f"💾 Saving suggestion: {current_suggestion}")
                     suggestion = self._create_suggestion_from_dict(current_suggestion, file_content, repository, branch)
                     if suggestion:
                         suggestions.append(suggestion)
                 
                 # Start new suggestion - extract type from various formats
                 if '**Type**:' in line:
-                    current_suggestion['type'] = line.split('**Type**:', 1)[1].strip()
+                    current_suggestion = {'type': line.split('**Type**:', 1)[1].strip()}
                 elif 'Type:' in line:
-                    current_suggestion['type'] = line.split('Type:', 1)[1].strip()
+                    current_suggestion = {'type': line.split('Type:', 1)[1].strip()}
                 else:
-                    current_suggestion['type'] = line.split(':', 1)[1].strip()
+                    current_suggestion = {'type': line.split(':', 1)[1].strip()}
+                print(f"🆕 New suggestion started: {current_suggestion}")
                 
-            elif any(line.startswith(pattern) for pattern in ['- Severity:', 'Severity:', '**Severity**:', '**Severity**:']):
+            elif '**Severity**:' in line or 'Severity:' in line:
                 if '**Severity**:' in line:
                     current_suggestion['severity'] = line.split('**Severity**:', 1)[1].strip()
                 elif 'Severity:' in line:
                     current_suggestion['severity'] = line.split('Severity:', 1)[1].strip()
-                else:
-                    current_suggestion['severity'] = line.split(':', 1)[1].strip()
+                print(f"🔴 Severity set: {current_suggestion.get('severity')}")
                     
-            elif any(line.startswith(pattern) for pattern in ['- Title:', 'Title:', '**Title**:', '**Title**:']):
+            elif '**Title**:' in line or 'Title:' in line:
                 if '**Title**:' in line:
                     current_suggestion['title'] = line.split('**Title**:', 1)[1].strip()
                 elif 'Title:' in line:
                     current_suggestion['title'] = line.split('Title:', 1)[1].strip()
-                else:
-                    current_suggestion['title'] = line.split(':', 1)[1].strip()
+                print(f"📌 Title set: {current_suggestion.get('title')}")
                     
-            elif any(line.startswith(pattern) for pattern in ['- Description:', 'Description:', '**Description**:', '**Description**:']):
+            elif '**Description**:' in line or 'Description:' in line:
                 if '**Description**:' in line:
                     current_suggestion['description'] = line.split('**Description**:', 1)[1].strip()
                 elif 'Description:' in line:
                     current_suggestion['description'] = line.split('Description:', 1)[1].strip()
-                else:
-                    current_suggestion['description'] = line.split(':', 1)[1].strip()
+                print(f"📝 Description set: {current_suggestion.get('description')}")
                     
-            elif any(line.startswith(pattern) for pattern in ['- Suggestion:', 'Suggestion:', '**Suggestion**:', '**Suggestion**:']):
+            elif '**Suggestion**:' in line or 'Suggestion:' in line:
                 if '**Suggestion**:' in line:
                     current_suggestion['suggestion'] = line.split('**Suggestion**:', 1)[1].strip()
                 elif 'Suggestion:' in line:
                     current_suggestion['suggestion'] = line.split('Suggestion:', 1)[1].strip()
-                else:
-                    current_suggestion['suggestion'] = line.split(':', 1)[1].strip()
+                print(f"💡 Suggestion set: {current_suggestion.get('suggestion')}")
                     
-            elif any(line.startswith(pattern) for pattern in ['- Line Number:', 'Line Number:', '**Line Number**:', '**Line Number**:']):
+            elif '**Line Number**:' in line or 'Line Number:' in line:
                 if '**Line Number**:' in line:
                     current_suggestion['line_number'] = line.split('**Line Number**:', 1)[1].strip()
                 elif 'Line Number:' in line:
                     current_suggestion['line_number'] = line.split('Line Number:', 1)[1].strip()
-                else:
-                    current_suggestion['line_number'] = line.split(':', 1)[1].strip()
+                print(f"📍 Line number set: {current_suggestion.get('line_number')}")
         
         # Add the last suggestion
         if current_suggestion and 'type' in current_suggestion:
+            print(f"💾 Saving final suggestion: {current_suggestion}")
             suggestion = self._create_suggestion_from_dict(current_suggestion, file_content, repository, branch)
             if suggestion:
                 suggestions.append(suggestion)
+                print(f"✅ Suggestion created successfully")
+            else:
+                print(f"❌ Failed to create suggestion from: {current_suggestion}")
         
+        print(f"🎯 Total suggestions parsed: {len(suggestions)}")
         return suggestions
     
     def _create_suggestion_from_dict(self, suggestion_dict: Dict[str, str], 
