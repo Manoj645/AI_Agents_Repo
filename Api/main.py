@@ -404,6 +404,59 @@ async def ai_config_test():
             "message": str(e)
         }
 
+@app.get("/github-auth-test")
+async def github_auth_test(owner: str | None = None, repo: str | None = None, pr: int | None = None):
+    """Validate GitHub token and optionally check access to a specific PR.
+
+    Usage:
+    - /github-auth-test
+    - /github-auth-test?owner=Manoj645&repo=AI_Agents_Repo&pr=14
+    """
+    try:
+        from ai_agent.config import AIConfig
+        import requests
+
+        token = AIConfig.GITHUB_TOKEN
+        headers = AIConfig.get_github_headers() if token else {}
+
+        result = {
+            "status": "success",
+            "token_present": bool(token and token not in ("", "your_github_token_here")),
+            "token_preview": (f"{token[:4]}***{token[-4:]}" if token and len(token) >= 10 else None),
+        }
+
+        # Basic auth test against /user
+        try:
+            resp = requests.get("https://api.github.com/user", headers=headers, timeout=10)
+            result["user_status"] = resp.status_code
+            if resp.ok:
+                data = resp.json()
+                result["user_login"] = data.get("login")
+            else:
+                result["user_error"] = resp.text[:200]
+        except Exception as e:
+            result["user_exception"] = str(e)
+
+        # Optional PR check
+        if owner and repo and pr is not None:
+            pr_url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr}"
+            try:
+                pr_resp = requests.get(pr_url, headers=headers, timeout=10)
+                result["pr_status"] = pr_resp.status_code
+                result["pr_url"] = pr_url
+                if pr_resp.ok:
+                    pr_json = pr_resp.json()
+                    result["pr_title"] = pr_json.get("title")
+                else:
+                    result["pr_error"] = pr_resp.text[:300]
+            except Exception as e:
+                result["pr_exception"] = str(e)
+
+        return result
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.get("/check-reviews/{pr_id}")
 async def check_reviews(pr_id: int, db: Session = Depends(get_db)):
     """Check if code reviews exist for a specific PR"""
