@@ -5,6 +5,7 @@ from sqlalchemy import select, text
 from sqlmodel import SQLModel
 import traceback
 from pydantic import ValidationError
+from typing import Optional
 import json
 import asyncio
 from datetime import datetime
@@ -405,7 +406,7 @@ async def ai_config_test():
         }
 
 @app.get("/github-auth-test")
-async def github_auth_test(owner: str | None = None, repo: str | None = None, pr: int | None = None):
+async def github_auth_test(owner: Optional[str] = None, repo: Optional[str] = None, pr: Optional[int] = None):
     """Validate GitHub token and optionally check access to a specific PR.
 
     Usage:
