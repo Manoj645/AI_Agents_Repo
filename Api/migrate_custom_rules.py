@@ -72,10 +72,7 @@ def create_custom_rules_table():
             insert_sample_data(engine)
             
             return True
-        else:
-            # Table exists, just insert sample data
-            insert_sample_data(engine)
-            return True
+
             
     except Exception as e:
         print(f"❌ Error creating custom rules table: {e}")
