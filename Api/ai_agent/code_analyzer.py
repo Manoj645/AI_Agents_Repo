@@ -202,39 +202,55 @@ class CodeAnalyzer:
                 
                 # Start new suggestion - extract type from various formats
                 if '**Type**:' in line:
-                    current_suggestion = {'type': line.split('**Type**:', 1)[1].strip()}
+                    type_value = line.split('**Type**:', 1)[1].strip()
                 elif 'Type:' in line:
-                    current_suggestion = {'type': line.split('Type:', 1)[1].strip()}
+                    type_value = line.split('Type:', 1)[1].strip()
                 else:
-                    current_suggestion = {'type': line.split(':', 1)[1].strip()}
+                    type_value = line.split(':', 1)[1].strip()
+                
+                # Clean up the type value (remove asterisks and normalize)
+                type_value = type_value.replace('*', '').strip().lower()
+                current_suggestion = {'type': type_value}
                 print(f"🆕 New suggestion started: {current_suggestion}")
                 
             elif '**Severity**:' in line or 'Severity:' in line:
                 if '**Severity**:' in line:
-                    current_suggestion['severity'] = line.split('**Severity**:', 1)[1].strip()
+                    severity_value = line.split('**Severity**:', 1)[1].strip()
                 elif 'Severity:' in line:
-                    current_suggestion['severity'] = line.split('Severity:', 1)[1].strip()
+                    severity_value = line.split('Severity:', 1)[1].strip()
+                # Clean up the severity value (remove asterisks and normalize)
+                severity_value = severity_value.replace('*', '').strip().lower()
+                current_suggestion['severity'] = severity_value
                 print(f"🔴 Severity set: {current_suggestion.get('severity')}")
                     
             elif '**Title**:' in line or 'Title:' in line:
                 if '**Title**:' in line:
-                    current_suggestion['title'] = line.split('**Title**:', 1)[1].strip()
+                    title_value = line.split('**Title**:', 1)[1].strip()
                 elif 'Title:' in line:
-                    current_suggestion['title'] = line.split('Title:', 1)[1].strip()
+                    title_value = line.split('Title:', 1)[1].strip()
+                # Clean up the title value (remove asterisks)
+                title_value = title_value.replace('*', '').strip()
+                current_suggestion['title'] = title_value
                 print(f"📌 Title set: {current_suggestion.get('title')}")
                     
             elif '**Description**:' in line or 'Description:' in line:
                 if '**Description**:' in line:
-                    current_suggestion['description'] = line.split('**Description**:', 1)[1].strip()
+                    desc_value = line.split('**Description**:', 1)[1].strip()
                 elif 'Description:' in line:
-                    current_suggestion['description'] = line.split('Description:', 1)[1].strip()
+                    desc_value = line.split('Description:', 1)[1].strip()
+                # Clean up the description value (remove asterisks)
+                desc_value = desc_value.replace('*', '').strip()
+                current_suggestion['description'] = desc_value
                 print(f"📝 Description set: {current_suggestion.get('description')}")
                     
             elif '**Suggestion**:' in line or 'Suggestion:' in line:
                 if '**Suggestion**:' in line:
-                    current_suggestion['suggestion'] = line.split('**Suggestion**:', 1)[1].strip()
+                    sugg_value = line.split('**Suggestion**:', 1)[1].strip()
                 elif 'Suggestion:' in line:
-                    current_suggestion['suggestion'] = line.split('Suggestion:', 1)[1].strip()
+                    sugg_value = line.split('Suggestion:', 1)[1].strip()
+                # Clean up the suggestion value (remove asterisks)
+                sugg_value = sugg_value.replace('*', '').strip()
+                current_suggestion['suggestion'] = sugg_value
                 print(f"💡 Suggestion set: {current_suggestion.get('suggestion')}")
                     
             elif '**Line Number**:' in line or 'Line Number:' in line:
@@ -273,17 +289,50 @@ class CodeAnalyzer:
             # Generate GitHub URL
             github_url = self._generate_github_url(repository, branch, file_content.filename, line_number)
             
+            # Validate and normalize suggestion type
+            suggestion_type = suggestion_dict.get('type', 'improvement')
+            try:
+                suggestion_type_enum = SuggestionType(suggestion_type)
+            except ValueError:
+                # Map common variations to valid enum values
+                type_mapping = {
+                    'performance': 'performance',
+                    'style': 'style',
+                    'security': 'security',
+                    'bug': 'bug',
+                    'improvement': 'improvement',
+                    'documentation': 'documentation',
+                    'testing': 'testing'
+                }
+                suggestion_type = type_mapping.get(suggestion_type, 'improvement')
+                suggestion_type_enum = SuggestionType(suggestion_type)
+            
+            # Validate and normalize severity
+            severity = suggestion_dict.get('severity', 'medium')
+            try:
+                severity_enum = Severity(severity)
+            except ValueError:
+                # Map common variations to valid enum values
+                severity_mapping = {
+                    'low': 'low',
+                    'medium': 'medium',
+                    'high': 'high',
+                    'critical': 'critical'
+                }
+                severity = severity_mapping.get(severity, 'medium')
+                severity_enum = Severity(severity)
+            
             # Create suggestion
             suggestion = CodeReviewSuggestion(
                 file_path=file_content.filename,
                 line_number=line_number,
-                suggestion_type=SuggestionType(suggestion_dict.get('type', 'improvement')),
-                severity=Severity(suggestion_dict.get('severity', 'medium')),
+                suggestion_type=suggestion_type_enum,
+                severity=severity_enum,
                 title=suggestion_dict.get('title', 'Code Review Suggestion'),
                 description=suggestion_dict.get('description', ''),
                 suggestion=suggestion_dict.get('suggestion'),
                 github_url=github_url,
-                rule_applied=suggestion_dict.get('type', 'improvement'),
+                rule_applied=suggestion_type,
                 context_lines=file_content.context_lines
             )
             

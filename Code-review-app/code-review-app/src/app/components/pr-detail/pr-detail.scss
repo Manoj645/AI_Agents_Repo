@@ -109,6 +109,16 @@
       margin-top: 1.5rem;
       padding-top: 1.5rem;
       border-top: 1px solid rgba(0, 0, 0, 0.12);
+      
+      .button-spinner {
+        margin-right: 0.5rem;
+      }
+      
+      button {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
     }
   }
 

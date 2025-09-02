@@ -144,6 +144,16 @@
               align-items: center;
               gap: 0.5rem;
               margin-left: 1rem;
+              
+              .button-spinner {
+                margin-right: 0.25rem;
+              }
+              
+              button {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              }
             }
           }
         }

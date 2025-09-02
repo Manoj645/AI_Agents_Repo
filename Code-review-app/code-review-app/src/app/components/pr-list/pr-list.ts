@@ -46,6 +46,7 @@ export class PrListComponent implements OnInit {
   filteredPRs: PullRequest[] = [];
   openPRs: PullRequest[] = [];
   loading: boolean = true;
+  reviewLoading: Map<number, boolean> = new Map();
   error: string = '';
   searchTerm: string = '';
   selectedStatus: string = 'all';
@@ -139,8 +140,11 @@ export class PrListComponent implements OnInit {
   }
 
   triggerReview(prId: number) {
+    this.reviewLoading.set(prId, true);
+    
     this.apiService.triggerAiReview(prId).subscribe({
       next: (result) => {
+        this.reviewLoading.set(prId, false);
         this.snackBar.open(`AI review triggered for PR #${prId}`, 'Close', {
           duration: 3000
         });
@@ -148,6 +152,7 @@ export class PrListComponent implements OnInit {
         setTimeout(() => this.loadPullRequests(), 2000);
       },
       error: (error) => {
+        this.reviewLoading.set(prId, false);
         console.error('Error triggering review:', error);
         this.snackBar.open('Failed to trigger AI review', 'Close', {
           duration: 3000

@@ -70,9 +70,10 @@
         
         <div class="actions">
           <button mat-raised-button color="primary" (click)="triggerReview()" 
-                  [disabled]="pullRequest.status !== 'open'">
-            <mat-icon>play_arrow</mat-icon>
-            Trigger AI Review
+                  [disabled]="pullRequest.status !== 'open' || reviewLoading">
+            <mat-spinner *ngIf="reviewLoading" diameter="20" class="button-spinner"></mat-spinner>
+            <mat-icon *ngIf="!reviewLoading">play_arrow</mat-icon>
+            {{ reviewLoading ? 'Triggering AI Review...' : 'Trigger AI Review' }}
           </button>
           <button mat-stroked-button (click)="refreshData()">
             <mat-icon>refresh</mat-icon>
