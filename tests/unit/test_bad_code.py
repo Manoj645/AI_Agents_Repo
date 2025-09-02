@@ -167,7 +167,7 @@ def bad_exception_handling():
 def inconsistent_indentation():
     """Function with inconsistent indentation"""
     x = 1
-      y = 2  # Bad: wrong indentation
+    y = 2  # This should be properly indented
     z = 3
     return x + y + z
 
@@ -278,6 +278,48 @@ class BadClass:
         """Format output"""
         pass
 
+# Bad: SQL Injection vulnerability
+def vulnerable_sql_query(user_input):
+    """Function vulnerable to SQL injection"""
+    query = "SELECT * FROM users WHERE name = '" + user_input + "'"  # Bad: SQL injection
+    return query
+
+# Bad: Hardcoded API key
+def api_call_with_hardcoded_key():
+    """Function with hardcoded API key"""
+    api_key = "sk-1234567890abcdef"  # Bad: hardcoded API key
+    headers = {"Authorization": f"Bearer {api_key}"}
+    return headers
+
+# Bad: Insecure password hashing
+def insecure_password_hash(password):
+    """Function with insecure password hashing"""
+    import hashlib
+    return hashlib.md5(password.encode()).hexdigest()  # Bad: MD5 is insecure
+
+# Bad: No input validation
+def process_user_input(user_input):
+    """Function without input validation"""
+    return eval(user_input)  # Bad: eval() is dangerous
+
+# Bad: Resource leak
+def file_operation_without_context_manager():
+    """Function that doesn't use context manager for file operations"""
+    file = open("test.txt", "w")
+    file.write("test")
+    # Bad: file is never closed, causing resource leak
+    return "file written"
+
+# Bad: Inefficient algorithm
+def inefficient_sort(data):
+    """Function with inefficient sorting algorithm"""
+    # Bad: O(n²) bubble sort instead of built-in O(n log n) sort
+    for i in range(len(data)):
+        for j in range(len(data) - 1):
+            if data[j] > data[j + 1]:
+                data[j], data[j + 1] = data[j + 1], data[j]
+    return data
+
 # Bad: No main guard
 if __name__ == "__main__":
     print("Running bad code test")
@@ -297,3 +339,11 @@ if __name__ == "__main__":
     inconsistent_return_types(True)
     function_with_dead_code()
     function_without_logging()
+    
+    # Test new security and performance issues
+    vulnerable_sql_query("admin'; DROP TABLE users; --")
+    api_call_with_hardcoded_key()
+    insecure_password_hash("password123")
+    process_user_input("__import__('os').system('ls')")
+    file_operation_without_context_manager()
+    inefficient_sort([5, 2, 8, 1, 9, 3, 7, 4, 6])
