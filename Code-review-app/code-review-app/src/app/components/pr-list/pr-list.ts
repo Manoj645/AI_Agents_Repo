@@ -13,8 +13,9 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { FormsModule } from '@angular/forms';
-import { PullRequest } from '../../models/pull-request.interface';
+import { PullRequest, CodeReviewSuggestion } from '../../models/pull-request.interface';
 import { ApiService } from '../../services/api.service';
 
 @Component({
@@ -34,6 +35,7 @@ import { ApiService } from '../../services/api.service';
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    MatExpansionModule,
     FormsModule
   ],
   templateUrl: './pr-list.html',
@@ -173,5 +175,13 @@ export class PrListComponent implements OnInit {
 
   getTotalDeletions(pr: PullRequest): number {
     return pr.files ? pr.files.reduce((total, file) => total + file.deletions, 0) : 0;
+  }
+
+  getCriticalSuggestions(pr: PullRequest): CodeReviewSuggestion[] {
+    return pr.suggestions ? pr.suggestions.filter(suggestion => suggestion.severity === 'critical') : [];
+  }
+
+  hasCriticalSuggestions(pr: PullRequest): boolean {
+    return this.getCriticalSuggestions(pr).length > 0;
   }
 }

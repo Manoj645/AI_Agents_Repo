@@ -148,6 +148,33 @@
                       {{pr.files.length}} files changed
                     </span>
                   </div>
+
+                  <!-- Critical Suggestions Accordion -->
+                  <mat-expansion-panel class="critical-accordion" *ngIf="hasCriticalSuggestions(pr)">
+                    <mat-expansion-panel-header>
+                      <mat-panel-title>
+                        <mat-icon class="critical-icon" color="warn">warning</mat-icon>
+                        <span class="critical-title">
+                          Critical Suggestions ({{getCriticalSuggestions(pr).length}})
+                        </span>
+                      </mat-panel-title>
+                    </mat-expansion-panel-header>
+                    
+                    <div class="suggestion-item" *ngFor="let suggestion of getCriticalSuggestions(pr)">
+                      <div class="suggestion-header">
+                        <mat-icon class="suggestion-icon" color="warn">error</mat-icon>
+                        <span class="suggestion-title">{{suggestion.title}}</span>
+                      </div>
+                      <p class="suggestion-description">{{suggestion.description}}</p>
+                      <div class="suggestion-meta">
+                        <span class="file-path">{{suggestion.file_path}}</span>
+                        <span class="line-number" *ngIf="suggestion.line_number">Line {{suggestion.line_number}}</span>
+                      </div>
+                      <div class="suggestion-rule">
+                        <strong>Rule:</strong> {{suggestion.rule_applied}}
+                      </div>
+                    </div>
+                  </mat-expansion-panel>
                 </div>
                 
                 <div class="pr-actions">
