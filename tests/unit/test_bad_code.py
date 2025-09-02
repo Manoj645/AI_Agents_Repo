@@ -320,6 +320,125 @@ def inefficient_sort(data):
                 data[j], data[j + 1] = data[j + 1], data[j]
     return data
 
+# Bad: Global mutable state
+global_counter = 0
+global_data = []
+
+def modify_global_state():
+    """Function that modifies global state"""
+    global global_counter, global_data
+    global_counter += 1
+    global_data.append(global_counter)
+    return global_counter
+
+# Bad: Deep nesting
+def deeply_nested_function():
+    """Function with excessive nesting"""
+    for i in range(10):
+        if i > 0:
+            for j in range(i):
+                if j % 2 == 0:
+                    for k in range(j):
+                        if k < 5:
+                            for l in range(k):
+                                if l > 0:
+                                    print(f"Deeply nested: {i}-{j}-{k}-{l}")
+
+# Bad: Inconsistent naming conventions
+def InconsistentNaming():
+    """Function with inconsistent naming"""
+    camelCase = "bad"
+    snake_case = "good"
+    UPPER_CASE = "also bad"
+    return camelCase + snake_case + UPPER_CASE
+
+# Bad: Long line exceeding 88 characters
+def function_with_very_long_line_that_exceeds_the_recommended_line_length_and_should_be_broken_down_into_multiple_lines():
+    """Function with line that's too long"""
+    return "This line is way too long and should be broken down into multiple lines to improve readability and follow PEP 8 guidelines"
+
+# Bad: Unused parameters
+def function_with_unused_params(param1, param2, param3):
+    """Function with unused parameters"""
+    result = param1 + param2  # param3 is never used
+    return result
+
+# Bad: Magic strings
+def function_with_magic_strings():
+    """Function with magic strings"""
+    if status == "ACTIVE":
+        return "User is active"
+    elif status == "INACTIVE":
+        return "User is inactive"
+    elif status == "PENDING":
+        return "User is pending"
+    elif status == "SUSPENDED":
+        return "User is suspended"
+    else:
+        return "Unknown status"
+
+# Bad: Side effects in function
+def function_with_side_effects():
+    """Function with side effects"""
+    global global_counter
+    global_counter += 1
+    print(f"Counter incremented to: {global_counter}")
+    return global_counter
+
+# Bad: Duplicate code
+def duplicate_function_1():
+    """First duplicate function"""
+    data = []
+    for i in range(10):
+        if i % 2 == 0:
+            data.append(i * 2)
+        else:
+            data.append(i + 1)
+    return data
+
+def duplicate_function_2():
+    """Second duplicate function (same logic)"""
+    data = []
+    for i in range(10):
+        if i % 2 == 0:
+            data.append(i * 2)
+        else:
+            data.append(i + 1)
+    return data
+
+# Bad: Hardcoded file paths
+def read_config_file():
+    """Function with hardcoded file path"""
+    config_path = "/home/user/config/settings.json"
+    with open(config_path, 'r') as f:
+        return f.read()
+
+# Bad: No input validation
+def divide_numbers(a, b):
+    """Function without input validation"""
+    return a / b  # No check for b == 0
+
+# Bad: Inefficient string operations
+def inefficient_string_operations():
+    """Function with inefficient string operations"""
+    result = ""
+    for i in range(1000):
+        result += str(i)  # Bad: string concatenation in loop
+    return result
+
+# Bad: Unnecessary complexity
+def unnecessarily_complex_boolean_logic():
+    """Function with unnecessarily complex boolean logic"""
+    condition1 = True
+    condition2 = False
+    condition3 = True
+    condition4 = False
+    
+    if (condition1 and condition2) or (condition3 and condition4) or (condition1 and condition3) or (condition2 and condition4):
+        return "Complex condition met"
+    else:
+        return "Complex condition not met"
+
 # Bad: No main guard
 if __name__ == "__main__":
     print("Running bad code test")
@@ -347,3 +466,18 @@ if __name__ == "__main__":
     process_user_input("__import__('os').system('ls')")
     file_operation_without_context_manager()
     inefficient_sort([5, 2, 8, 1, 9, 3, 7, 4, 6])
+    
+    # Test new violations
+    modify_global_state()
+    deeply_nested_function()
+    InconsistentNaming()
+    function_with_very_long_line_that_exceeds_the_recommended_line_length_and_should_be_broken_down_into_multiple_lines()
+    function_with_unused_params(1, 2, 3)
+    function_with_magic_strings()
+    function_with_side_effects()
+    duplicate_function_1()
+    duplicate_function_2()
+    read_config_file()
+    divide_numbers(10, 0)  # This will cause division by zero
+    inefficient_string_operations()
+    unnecessarily_complex_boolean_logic()
