@@ -184,8 +184,9 @@
                   
                   <button mat-icon-button (click)="triggerReview(pr.id)" 
                           matTooltip="Trigger AI Review"
-                          [disabled]="pr.status !== 'open'">
-                    <mat-icon>play_arrow</mat-icon>
+                          [disabled]="pr.status !== 'open' || reviewLoading.get(pr.id)">
+                    <mat-spinner *ngIf="reviewLoading.get(pr.id)" diameter="20" class="button-spinner"></mat-spinner>
+                    <mat-icon *ngIf="!reviewLoading.get(pr.id)">play_arrow</mat-icon>
                   </button>
                   
                   <button mat-icon-button [routerLink]="['/prs', pr.id]" 

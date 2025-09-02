@@ -38,6 +38,7 @@ export class PrDetailComponent implements OnInit {
   pullRequest: PullRequest | null = null;
   codeReviews: CodeReviewSuggestion[] = [];
   loading: boolean = true;
+  reviewLoading: boolean = false;
   error: string = '';
 
   constructor(
@@ -143,8 +144,11 @@ export class PrDetailComponent implements OnInit {
   }
 
   triggerReview() {
+    this.reviewLoading = true;
+    
     this.apiService.triggerAiReview(this.prId).subscribe({
       next: (result) => {
+        this.reviewLoading = false;
         this.snackBar.open(`AI review triggered for PR #${this.prId}`, 'Close', {
           duration: 3000
         });
@@ -152,6 +156,7 @@ export class PrDetailComponent implements OnInit {
         setTimeout(() => this.loadCodeReviews(), 2000);
       },
       error: (error) => {
+        this.reviewLoading = false;
         console.error('Error triggering review:', error);
         this.snackBar.open('Failed to trigger AI review', 'Close', {
           duration: 3000
