@@ -25,6 +25,30 @@ class Severity(str, Enum):
     HIGH = "high"
     CRITICAL = "critical"
 
+class RuleCategory(str, Enum):
+    """Categories for custom rules"""
+    STYLE = "Style"
+    SECURITY = "Security"
+    PERFORMANCE = "Performance"
+    DOCUMENTATION = "Documentation"
+    TESTING = "Testing"
+    GENERAL = "General"
+
+class ProgrammingLanguage(str, Enum):
+    """Supported programming languages"""
+    PYTHON = "Python"
+    JAVASCRIPT = "JavaScript"
+    TYPESCRIPT = "TypeScript"
+    JAVA = "Java"
+    CPP = "C++"
+    CSHARP = "C#"
+    PHP = "PHP"
+    GO = "Go"
+    RUST = "Rust"
+    RUBY = "Ruby"
+    MARKDOWN = "Markdown"
+    TEXT = "Text"
+
 class PullRequest(SQLModel, table=True):
     """Pull Request model"""
     __tablename__ = "pull_requests"
@@ -110,3 +134,20 @@ class CodeReview(SQLModel, table=True):
     
     # Relationship
     pull_request: Optional[PullRequest] = Relationship(back_populates="code_reviews")
+
+class CustomRule(SQLModel, table=True):
+    """Custom Rule model for user-defined code review rules"""
+    __tablename__ = "custom_rules"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(max_length=255)
+    filename: str = Field(max_length=255)
+    content: str
+    language: ProgrammingLanguage
+    category: RuleCategory = Field(default=RuleCategory.GENERAL)
+    description: Optional[str] = Field(default=None)
+    is_active: bool = Field(default=True)
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

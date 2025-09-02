@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ import asyncio
 from datetime import datetime
 
 from database import get_db, create_db_and_tables
-from models import PullRequest, File, CodeReview
+from models import PullRequest, File, CodeReview, CustomRule, RuleCategory, ProgrammingLanguage
 from webhooks import GitHubWebhookHandler
 from ai_agent.service import AIReviewService
 
@@ -51,6 +51,9 @@ async def root():
             "/prs/{pr_id}",
             "/prs/{pr_id}/files",
             "/prs/{pr_id}/suggestions",
+            "/custom-rules",
+            "/custom-rules/{rule_id}",
+            "/custom-rules/upload",
             "/webhooks/github",
             "/db-test",
             "/ai-review/{pr_id}"
@@ -754,6 +757,388 @@ async def trigger_ai_review(pr_id: int, db: Session = Depends(get_db)):
             "status": "error",
             "message": str(e)
         }
+
+# Custom Rules Endpoints
+@app.get("/custom-rules")
+async def get_custom_rules():
+    """Get all custom rules from the Custom-rules folder"""
+    try:
+        import os
+        from pathlib import Path
+        
+        # Path to the Custom-rules folder
+        custom_rules_path = Path("../Custom-rules")
+        
+        if not custom_rules_path.exists():
+            return {
+                "status": "success",
+                "data": []
+            }
+        
+        rules = []
+        rule_id = 1
+        
+        # Read all files from the Custom-rules folder
+        for file_path in custom_rules_path.glob("*"):
+            if file_path.is_file() and file_path.suffix.lower() in ['.md', '.txt', '.py', '.js', '.ts', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go', '.rs']:
+                try:
+                    # Read file content
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # Get file stats
+                    stat = file_path.stat()
+                    
+                    # Auto-detect language
+                    language_map = {
+                        '.py': 'Python',
+                        '.js': 'JavaScript',
+                        '.ts': 'TypeScript',
+                        '.java': 'Java',
+                        '.cpp': 'C++',
+                        '.c': 'C',
+                        '.cs': 'C#',
+                        '.php': 'PHP',
+                        '.rb': 'Ruby',
+                        '.go': 'Go',
+                        '.rs': 'Rust',
+                        '.md': 'Markdown',
+                        '.txt': 'Text'
+                    }
+                    language = language_map.get(file_path.suffix.lower(), 'Text')
+                    
+                    # Auto-detect category
+                    content_lower = content.lower()
+                    if 'security' in content_lower or 'vulnerability' in content_lower:
+                        category = 'Security'
+                    elif 'performance' in content_lower or 'optimization' in content_lower:
+                        category = 'Performance'
+                    elif 'style' in content_lower or 'formatting' in content_lower:
+                        category = 'Style'
+                    elif 'documentation' in content_lower or 'comment' in content_lower:
+                        category = 'Documentation'
+                    elif 'test' in content_lower or 'testing' in content_lower:
+                        category = 'Testing'
+                    else:
+                        category = 'General'
+                    
+                    # Create rule object
+                    rule = {
+                        "id": str(rule_id),
+                        "name": file_path.stem.replace('_', ' ').replace('-', ' ').title(),
+                        "filename": file_path.name,
+                        "content": content,
+                        "language": language,
+                        "category": category,
+                        "description": f"Custom rule for {language} - {category}",
+                        "is_active": True,
+                        "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                        "updated_at": datetime.fromtimestamp(stat.st_mtime).isoformat()
+                    }
+                    
+                    rules.append(rule)
+                    rule_id += 1
+                    
+                except Exception as e:
+                    print(f"Error reading file {file_path}: {e}")
+                    continue
+        
+        return {
+            "status": "success",
+            "data": rules
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch custom rules: {str(e)}"
+        )
+
+@app.get("/custom-rules/{rule_id}")
+async def get_custom_rule(rule_id: int, db: Session = Depends(get_db)):
+    """Get a specific custom rule by ID"""
+    try:
+        stmt = select(CustomRule).where(CustomRule.id == rule_id)
+        rule = db.execute(stmt).scalar_one_or_none()
+        
+        if not rule:
+            raise HTTPException(status_code=404, detail="Custom rule not found")
+        
+        return {
+            "status": "success",
+            "data": {
+                "id": rule.id,
+                "name": rule.name,
+                "filename": rule.filename,
+                "content": rule.content,
+                "language": rule.language.value,
+                "category": rule.category.value,
+                "description": rule.description,
+                "is_active": rule.is_active,
+                "created_at": rule.created_at.isoformat(),
+                "updated_at": rule.updated_at.isoformat()
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch custom rule: {str(e)}"
+        )
+
+@app.post("/custom-rules")
+async def create_custom_rule(
+    name: str,
+    content: str,
+    language: ProgrammingLanguage,
+    category: RuleCategory = RuleCategory.GENERAL,
+    description: Optional[str] = None,
+    filename: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Create a new custom rule"""
+    try:
+        if not filename:
+            filename = f"{name.lower().replace(' ', '_')}.md"
+        
+        rule = CustomRule(
+            name=name,
+            filename=filename,
+            content=content,
+            language=language,
+            category=category,
+            description=description,
+            is_active=True
+        )
+        
+        db.add(rule)
+        db.commit()
+        db.refresh(rule)
+        
+        return {
+            "status": "success",
+            "message": "Custom rule created successfully",
+            "data": {
+                "id": rule.id,
+                "name": rule.name,
+                "filename": rule.filename,
+                "content": rule.content,
+                "language": rule.language.value,
+                "category": rule.category.value,
+                "description": rule.description,
+                "is_active": rule.is_active,
+                "created_at": rule.created_at.isoformat(),
+                "updated_at": rule.updated_at.isoformat()
+            }
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create custom rule: {str(e)}"
+        )
+
+@app.put("/custom-rules/{rule_id}")
+async def update_custom_rule(
+    rule_id: int,
+    name: Optional[str] = None,
+    content: Optional[str] = None,
+    language: Optional[ProgrammingLanguage] = None,
+    category: Optional[RuleCategory] = None,
+    description: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    db: Session = Depends(get_db)
+):
+    """Update an existing custom rule"""
+    try:
+        stmt = select(CustomRule).where(CustomRule.id == rule_id)
+        rule = db.execute(stmt).scalar_one_or_none()
+        
+        if not rule:
+            raise HTTPException(status_code=404, detail="Custom rule not found")
+        
+        # Update fields if provided
+        if name is not None:
+            rule.name = name
+        if content is not None:
+            rule.content = content
+        if language is not None:
+            rule.language = language
+        if category is not None:
+            rule.category = category
+        if description is not None:
+            rule.description = description
+        if is_active is not None:
+            rule.is_active = is_active
+        
+        rule.updated_at = datetime.now()
+        
+        db.commit()
+        db.refresh(rule)
+        
+        return {
+            "status": "success",
+            "message": "Custom rule updated successfully",
+            "data": {
+                "id": rule.id,
+                "name": rule.name,
+                "filename": rule.filename,
+                "content": rule.content,
+                "language": rule.language.value,
+                "category": rule.category.value,
+                "description": rule.description,
+                "is_active": rule.is_active,
+                "created_at": rule.created_at.isoformat(),
+                "updated_at": rule.updated_at.isoformat()
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update custom rule: {str(e)}"
+        )
+
+@app.delete("/custom-rules/{filename}")
+async def delete_custom_rule(filename: str):
+    """Delete a custom rule file from the Custom-rules folder"""
+    try:
+        from pathlib import Path
+        
+        # Path to the Custom-rules folder
+        custom_rules_path = Path("../Custom-rules")
+        file_path = custom_rules_path / filename
+        
+        # Check if file exists
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Custom rule file not found")
+        
+        # Delete the file
+        file_path.unlink()
+        
+        return {
+            "status": "success",
+            "message": "Custom rule deleted successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete custom rule: {str(e)}"
+        )
+
+@app.post("/custom-rules/upload")
+async def upload_custom_rule(
+    file: UploadFile,
+    name: Optional[str] = None,
+    language: Optional[str] = None,
+    category: Optional[str] = None,
+    description: Optional[str] = None
+):
+    """Upload a custom rule file to the Custom-rules folder"""
+    try:
+        import os
+        from pathlib import Path
+        
+        # Validate file size (5MB limit)
+        if file.size > 5 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File size must be less than 5MB")
+        
+        # Validate file type
+        allowed_extensions = ['.md', '.txt', '.py', '.js', '.ts', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go', '.rs']
+        file_extension = '.' + file.filename.split('.')[-1].lower()
+        
+        if file_extension not in allowed_extensions:
+            raise HTTPException(status_code=400, detail="Unsupported file type")
+        
+        # Read file content
+        content = await file.read()
+        content_str = content.decode('utf-8')
+        
+        # Ensure Custom-rules folder exists
+        custom_rules_path = Path("../Custom-rules")
+        custom_rules_path.mkdir(exist_ok=True)
+        
+        # Create filename (sanitize to prevent path traversal)
+        safe_filename = file.filename.replace('/', '_').replace('\\', '_')
+        file_path = custom_rules_path / safe_filename
+        
+        # Check if file already exists
+        if file_path.exists():
+            raise HTTPException(status_code=400, detail="File already exists")
+        
+        # Save file to Custom-rules folder
+        with open(file_path, 'wb') as f:
+            f.write(content)
+        
+        # Auto-detect language if not provided
+        if not language:
+            language_map = {
+                '.py': 'Python',
+                '.js': 'JavaScript',
+                '.ts': 'TypeScript',
+                '.java': 'Java',
+                '.cpp': 'C++',
+                '.c': 'C',
+                '.cs': 'C#',
+                '.php': 'PHP',
+                '.rb': 'Ruby',
+                '.go': 'Go',
+                '.rs': 'Rust',
+                '.md': 'Markdown',
+                '.txt': 'Text'
+            }
+            language = language_map.get(file_extension, 'Text')
+        
+        # Auto-detect category if not provided
+        if not category:
+            content_lower = content_str.lower()
+            if 'security' in content_lower or 'vulnerability' in content_lower:
+                category = 'Security'
+            elif 'performance' in content_lower or 'optimization' in content_lower:
+                category = 'Performance'
+            elif 'style' in content_lower or 'formatting' in content_lower:
+                category = 'Style'
+            elif 'documentation' in content_lower or 'comment' in content_lower:
+                category = 'Documentation'
+            elif 'test' in content_lower or 'testing' in content_lower:
+                category = 'Testing'
+            else:
+                category = 'General'
+        
+        # Use filename as name if not provided
+        if not name:
+            name = file.filename.replace(file_extension, '').replace('_', ' ').title()
+        
+        # Get file stats
+        stat = file_path.stat()
+        
+        return {
+            "status": "success",
+            "message": "Custom rule uploaded successfully",
+            "data": {
+                "id": "1",  # Will be assigned when listing
+                "name": name,
+                "filename": safe_filename,
+                "content": content_str,
+                "language": language,
+                "category": category,
+                "description": description or f"Custom rule for {language} - {category}",
+                "is_active": True,
+                "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                "updated_at": datetime.fromtimestamp(stat.st_mtime).isoformat()
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload custom rule: {str(e)}"
+        )
 
 @app.get("/db-test")
 async def database_connection_test(db: Session = Depends(get_db)):

@@ -1,0 +1,56 @@
+<div class="view-rule-dialog">
+  <h2 mat-dialog-title>
+    <mat-icon class="rule-icon">rule</mat-icon>
+    {{rule.name}}
+  </h2>
+
+  <mat-dialog-content class="dialog-content">
+    <div class="rule-info">
+      <div class="info-row">
+        <span class="label">Filename:</span>
+        <span class="value">{{rule.filename}}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Language:</span>
+        <mat-chip [color]="getLanguageColor(rule.language)" selected>
+          {{rule.language}}
+        </mat-chip>
+      </div>
+      <div class="info-row">
+        <span class="label">Category:</span>
+        <mat-chip [color]="getCategoryColor(rule.category)" selected>
+          {{rule.category}}
+        </mat-chip>
+      </div>
+      <div class="info-row">
+        <span class="label">Status:</span>
+        <mat-chip [color]="rule.is_active ? 'accent' : 'warn'" selected>
+          {{rule.is_active ? 'Active' : 'Inactive'}}
+        </mat-chip>
+      </div>
+      <div class="info-row">
+        <span class="label">Created:</span>
+        <span class="value">{{rule.created_at | date:'medium'}}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Updated:</span>
+        <span class="value">{{rule.updated_at | date:'medium'}}</span>
+      </div>
+    </div>
+
+    <div class="content-section">
+      <h3>File Content</h3>
+      <div class="content-display">
+        <pre class="code-content">{{rule.content}}</pre>
+      </div>
+    </div>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Close</button>
+    <button mat-raised-button color="primary" (click)="downloadFile()">
+      <mat-icon>download</mat-icon>
+      Download
+    </button>
+  </mat-dialog-actions>
+</div>

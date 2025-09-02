@@ -1,0 +1,209 @@
+.custom-rules-container {
+  .header {
+    margin-bottom: 2rem;
+    
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 500;
+      margin: 0 0 0.5rem 0;
+      color: rgba(0, 0, 0, 0.87);
+    }
+    
+    p {
+      font-size: 1.1rem;
+      color: rgba(0, 0, 0, 0.6);
+      margin: 0;
+    }
+  }
+
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem;
+    
+    p {
+      margin-top: 1rem;
+      color: rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  .error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem;
+    text-align: center;
+    
+    mat-icon {
+      font-size: 3rem;
+      width: 3rem;
+      height: 3rem;
+      margin-bottom: 1rem;
+    }
+    
+    p {
+      margin-bottom: 1rem;
+      color: rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  .actions-card {
+    margin-bottom: 2rem;
+    
+    .actions-container {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 1rem;
+      align-items: end;
+      
+      .search-container {
+        .search-field {
+          width: 100%;
+        }
+      }
+      
+      .filter-container {
+        mat-form-field {
+          min-width: 150px;
+        }
+      }
+      
+      .actions-buttons {
+        display: flex;
+        gap: 0.5rem;
+        
+        button {
+          height: 56px;
+        }
+      }
+    }
+  }
+
+  .rules-card {
+    .rules-list {
+      .rules-table {
+        width: 100%;
+        
+        .rule-name {
+          h4 {
+            margin: 0 0 0.25rem 0;
+            font-size: 1rem;
+            font-weight: 500;
+            color: rgba(0, 0, 0, 0.87);
+          }
+          
+          .filename {
+            margin: 0;
+            font-size: 0.75rem;
+            color: rgba(0, 0, 0, 0.6);
+            font-family: 'Courier New', monospace;
+          }
+        }
+        
+        .actions {
+          display: flex;
+          gap: 0.25rem;
+          
+          button {
+            width: 32px;
+            height: 32px;
+            line-height: 32px;
+            
+            mat-icon {
+              font-size: 18px;
+              width: 18px;
+              height: 18px;
+            }
+          }
+        }
+        
+        mat-header-cell {
+          font-weight: 500;
+          color: rgba(0, 0, 0, 0.87);
+        }
+        
+        mat-cell {
+          padding: 1rem 0.5rem;
+        }
+      }
+    }
+    
+    .no-data {
+      text-align: center;
+      padding: 3rem;
+      color: rgba(0, 0, 0, 0.6);
+      
+      mat-icon {
+        font-size: 4rem;
+        width: 4rem;
+        height: 4rem;
+        margin-bottom: 1rem;
+      }
+      
+      p {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.1rem;
+      }
+      
+      .no-data-subtitle {
+        font-size: 0.9rem;
+        color: rgba(0, 0, 0, 0.5);
+        margin-bottom: 1.5rem;
+      }
+    }
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .custom-rules-container {
+    .actions-container {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      
+      .search-container,
+      .filter-container,
+      .actions-buttons {
+        width: 100%;
+      }
+      
+      .actions-buttons {
+        justify-content: center;
+      }
+    }
+    
+    .rules-table {
+      .mat-header-row,
+      .mat-row {
+        min-height: 60px;
+      }
+      
+      .actions {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        
+        button {
+          width: 36px;
+          height: 36px;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .custom-rules-container {
+    .header {
+      h1 {
+        font-size: 2rem;
+      }
+      
+      p {
+        font-size: 1rem;
+      }
+    }
+  }
+}

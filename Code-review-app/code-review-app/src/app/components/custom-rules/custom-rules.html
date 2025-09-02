@@ -1,0 +1,198 @@
+<div class="custom-rules-container">
+  <!-- Header -->
+  <div class="header">
+    <h1>Custom Rules</h1>
+    <p>Manage and configure custom code review rules for different programming languages</p>
+  </div>
+
+  <!-- Loading spinner -->
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Loading custom rules...</p>
+  </div>
+
+  <!-- Error message -->
+  <div *ngIf="error && !loading" class="error-container">
+    <mat-icon color="warn">error</mat-icon>
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="loadCustomRules()">Retry</button>
+  </div>
+
+
+
+  <!-- Main content -->
+  <div *ngIf="!loading && !error">
+    <!-- Actions Bar -->
+    <mat-card class="actions-card">
+      <mat-card-content>
+        <div class="actions-container">
+          <div class="search-container">
+            <mat-form-field appearance="outline" class="search-field">
+              <mat-label>Search Rules</mat-label>
+              <input matInput [(ngModel)]="searchTerm" (input)="onSearchChange()" 
+                     placeholder="Search by name, language, category...">
+              <mat-icon matSuffix>search</mat-icon>
+            </mat-form-field>
+          </div>
+
+          <div class="filter-container">
+            <mat-form-field appearance="outline">
+              <mat-label>Language</mat-label>
+              <mat-select [(ngModel)]="selectedLanguage" (selectionChange)="onLanguageChange()">
+                <mat-option value="all">All Languages</mat-option>
+                <mat-option value="Python">Python</mat-option>
+                <mat-option value="JavaScript">JavaScript</mat-option>
+                <mat-option value="TypeScript">TypeScript</mat-option>
+                <mat-option value="Java">Java</mat-option>
+                <mat-option value="C++">C++</mat-option>
+                <mat-option value="C#">C#</mat-option>
+                <mat-option value="PHP">PHP</mat-option>
+                <mat-option value="Go">Go</mat-option>
+                <mat-option value="Rust">Rust</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <div class="filter-container">
+            <mat-form-field appearance="outline">
+              <mat-label>Category</mat-label>
+              <mat-select [(ngModel)]="selectedCategory" (selectionChange)="onCategoryChange()">
+                <mat-option value="all">All Categories</mat-option>
+                <mat-option value="Style">Style</mat-option>
+                <mat-option value="Security">Security</mat-option>
+                <mat-option value="Performance">Performance</mat-option>
+                <mat-option value="Documentation">Documentation</mat-option>
+                <mat-option value="Testing">Testing</mat-option>
+                <mat-option value="General">General</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <div class="actions-buttons">
+            <button mat-raised-button color="primary" (click)="openUploadDialog()">
+              <mat-icon>upload</mat-icon>
+              Upload Rule
+            </button>
+            <button mat-raised-button color="accent" (click)="openCreateDialog()">
+              <mat-icon>add</mat-icon>
+              Create Rule
+            </button>
+            <button mat-stroked-button (click)="loadCustomRules()">
+              <mat-icon>refresh</mat-icon>
+              Refresh
+            </button>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Rules List -->
+    <mat-card class="rules-card">
+      <mat-card-header>
+        <mat-card-title>
+          Custom Rules ({{filteredRules.length}} found)
+        </mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <div *ngIf="filteredRules.length > 0; else noRules" class="rules-list">
+          <mat-table [dataSource]="getPaginatedRules()" class="rules-table">
+            <ng-container matColumnDef="name">
+              <mat-header-cell *matHeaderCellDef>Name</mat-header-cell>
+              <mat-cell *matCellDef="let rule">
+                <div class="rule-name">
+                  <h4>{{rule.name}}</h4>
+                  <p class="filename">{{rule.filename}}</p>
+                </div>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="language">
+              <mat-header-cell *matHeaderCellDef>Language</mat-header-cell>
+              <mat-cell *matCellDef="let rule">
+                <mat-chip [color]="getLanguageColor(rule.language)" selected>
+                  {{rule.language}}
+                </mat-chip>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="category">
+              <mat-header-cell *matHeaderCellDef>Category</mat-header-cell>
+              <mat-cell *matCellDef="let rule">
+                <mat-chip [color]="getCategoryColor(rule.category)" selected>
+                  {{rule.category}}
+                </mat-chip>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="status">
+              <mat-header-cell *matHeaderCellDef>Status</mat-header-cell>
+              <mat-cell *matCellDef="let rule">
+                <mat-chip [color]="rule.is_active ? 'accent' : 'warn'" selected>
+                  {{rule.is_active ? 'Active' : 'Inactive'}}
+                </mat-chip>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="updated">
+              <mat-header-cell *matHeaderCellDef>Last Updated</mat-header-cell>
+              <mat-cell *matCellDef="let rule">
+                {{rule.updated_at | date:'short'}}
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+              <mat-header-cell *matHeaderCellDef>Actions</mat-header-cell>
+              <mat-cell *matCellDef="let rule">
+                <div class="actions">
+                  <button mat-icon-button (click)="viewRule(rule)" matTooltip="View Rule">
+                    <mat-icon>visibility</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="editRule(rule)" matTooltip="Edit Rule">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="toggleRuleStatus(rule)" 
+                          [matTooltip]="rule.is_active ? 'Deactivate' : 'Activate'">
+                    <mat-icon>{{rule.is_active ? 'pause' : 'play_arrow'}}</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="deleteRule(rule)" matTooltip="Delete Rule">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
+              </mat-cell>
+            </ng-container>
+
+            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
+          </mat-table>
+        </div>
+        
+        <ng-template #noRules>
+          <div class="no-data">
+            <mat-icon color="disabled">rule</mat-icon>
+            <p>No custom rules found</p>
+            <p *ngIf="searchTerm || selectedLanguage !== 'all' || selectedCategory !== 'all'" class="no-data-subtitle">
+              Try adjusting your search or filter criteria
+            </p>
+            <button mat-raised-button color="primary" (click)="openCreateDialog()">
+              <mat-icon>add</mat-icon>
+              Create Your First Rule
+            </button>
+          </div>
+        </ng-template>
+      </mat-card-content>
+      
+      <!-- Pagination -->
+      <mat-card-footer *ngIf="filteredRules.length > 0">
+        <mat-paginator 
+          [length]="totalItems"
+          [pageSize]="pageSize"
+          [pageSizeOptions]="pageSizeOptions"
+          [pageIndex]="currentPage"
+          (page)="onPageChange($event)"
+          showFirstLastButtons>
+        </mat-paginator>
+      </mat-card-footer>
+    </mat-card>
+  </div>
+</div>
